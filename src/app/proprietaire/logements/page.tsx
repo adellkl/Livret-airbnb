@@ -23,6 +23,7 @@ import {
   CheckCircle2,
   Eye,
   Home,
+  ImageIcon,
   MapPin,
   Plus,
   Search,
@@ -324,18 +325,26 @@ function PortfolioStat({
 }
 
 function PropertyCard({ property, priority = false }: { property: OwnerProperty; priority?: boolean }) {
+  const propertyImage = property.coverImage.trim() || property.gallery?.find((photo) => photo.url.trim())?.url.trim();
+
   return (
     <article className="overflow-hidden rounded-[1.7rem] border border-[#e4ddd6] bg-white shadow-[0_12px_35px_rgba(32,28,24,0.05)]">
       <div className="relative h-48 overflow-hidden bg-[#ece7e1]">
-        <Image
-          src={property.coverImage}
-          alt={property.name}
-          fill
-          unoptimized
-          priority={priority}
-          sizes="(max-width: 768px) 100vw, 420px"
-          className="object-cover"
-        />
+        {propertyImage ? (
+          <Image
+            src={propertyImage}
+            alt={`Photo de ${property.name || 'votre logement'}`}
+            fill
+            unoptimized
+            priority={priority}
+            sizes="(max-width: 768px) 100vw, 420px"
+            className="object-cover"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center bg-[radial-gradient(circle_at_75%_20%,rgba(223,112,69,.42),transparent_28%),linear-gradient(135deg,#17232c,#30434a)] text-white/75">
+            <div className="flex flex-col items-center gap-2 text-xs font-medium"><ImageIcon size={22} />Photo du logement à ajouter</div>
+          </div>
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
         <div className="absolute left-4 top-4 flex items-center gap-2">
           <span
