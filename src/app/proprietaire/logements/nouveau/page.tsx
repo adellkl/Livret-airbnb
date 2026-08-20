@@ -164,6 +164,7 @@ export default function NewPropertyPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [property, setProperty] = useState<PropertyDraft>(initialProperty);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
   const [isSearchingAddress, setIsSearchingAddress] = useState(false);
@@ -200,6 +201,12 @@ export default function NewPropertyPage() {
   ) => {
     setProperty((current) => ({ ...current, [key]: value }));
     setError('');
+    setFieldErrors((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
   };
 
   const togglePublication = () => {
@@ -280,8 +287,8 @@ export default function NewPropertyPage() {
   useEffect(() => {
     const search = property.address.trim();
     if (search.length < 3) {
-      setAddressSuggestions([]);
-      return;
+      const clearSuggestions = window.setTimeout(() => setAddressSuggestions([]), 0);
+      return () => window.clearTimeout(clearSuggestions);
     }
     const controller = new AbortController();
     const timeout = window.setTimeout(async () => {
@@ -302,34 +309,59 @@ export default function NewPropertyPage() {
     return () => { controller.abort(); window.clearTimeout(timeout); };
   }, [property.address]);
 
-  const validateStep = () => {
-    if (
-      currentStep === 1 &&
-      (!property.name ||
-        !property.address ||
-        !property.city ||
-        !property.postalCode)
-    ) {
-      setError('Renseignez le nom et l’adresse complète du logement.');
-      return false;
+  const validateStep = (step = currentStep) => {
+    const errors: Record<string, string> = {};
+    const hasValue = (value: string | undefined, key: string, message: string) => {
+      if (!value?.trim()) errors[key] = message;
+    };
+    const phoneDigits = property.hostPhone.replace(/\D/g, '');
+
+    if (step === 1) {
+      if (property.name.trim().length < 3) errors.name = 'Saisissez un nom de logement d’au moins 3 caractères.';
+      if (!property.type.trim()) errors.type = 'Choisissez un type de logement.';
+      if (!Number.isInteger(property.capacity) || property.capacity < 1 || property.capacity > 30) errors.capacity = 'Indiquez un nombre de voyageurs entre 1 et 30.';
+      if (!Number.isInteger(property.bedrooms) || property.bedrooms < 0 || property.bedrooms > 20) errors.bedrooms = 'Indiquez un nombre de chambres entre 0 et 20.';
+      if (!/^\d{1,5}\s+.{3,}/.test(property.address.trim())) errors.address = 'Indiquez le numéro et le nom de la voie, par exemple « 12 rue des Fleurs ».';
+      if (property.city.trim().length < 2) errors.city = 'Indiquez la ville.';
+      if (!/^\d{5}$/.test(property.postalCode.trim())) errors.postalCode = 'Le code postal doit contenir exactement 5 chiffres.';
     }
 
-    if (
-      currentStep === 2 &&
-      (!property.description || !property.arrivalInstructions)
-    ) {
-      setError('Ajoutez le message de bienvenue et les instructions d’arrivée.');
-      return false;
+    if (step === 2) {
+      if (!/^\d{2}:\d{2}$/.test(property.checkIn)) errors.checkIn = 'Indiquez une heure d’arrivée.';
+      if (!/^\d{2}:\d{2}$/.test(property.checkOut)) errors.checkOut = 'Indiquez une heure de départ.';
+      hasValue(property.arrivalInstructions, 'arrivalInstructions', 'Décrivez les instructions d’arrivée.');
+      hasValue(property.accessCode, 'accessCode', 'Indiquez le code ou le mode d’accès au logement.');
+      hasValue(property.parkingInstructions, 'parkingInstructions', 'Indiquez les consignes de stationnement, même s’il n’y en a pas.');
+      hasValue(property.departureInstructions, 'departureInstructions', 'Indiquez les consignes de départ.');
+      hasValue(property.wifiName, 'wifiName', 'Indiquez le nom du réseau Wi‑Fi.');
+      hasValue(property.wifiPassword, 'wifiPassword', 'Indiquez le mot de passe Wi‑Fi.');
+      if (property.description.trim().length < 20) errors.description = 'Ajoutez une présentation d’au moins 20 caractères.';
     }
 
-    if (
-      currentStep === 6 &&
-      (!property.hostName || !property.hostPhone || !property.hostEmail)
-    ) {
-      setError('Complétez les coordonnées de la personne à contacter.');
+    if (step === 3 && !(property.amenities ?? []).some((item) => item.trim())) {
+      errors.amenities = 'Ajoutez au moins un équipement.';
+    }
+    if (step === 4) {
+      if (!(property.houseRules ?? []).some((item) => item.trim())) errors.houseRules = 'Ajoutez au moins une règle de la maison.';
+      if (!(property.faqItems ?? []).some((item) => /\S\s[—-]\s\S/.test(item.trim()))) errors.faqItems = 'Ajoutez une question avec sa réponse au format « Question — Réponse ».';
+    }
+    if (step === 5) {
+      const completePlace = (property.nearbyPlaces ?? []).some((place) => place.name.trim() && place.category.trim() && place.address.trim() && place.note.trim());
+      if (!completePlace) errors.nearbyPlaces = 'Ajoutez au moins une bonne adresse complète : nom, catégorie, adresse et note.';
+    }
+    if (step === 6) {
+      if (property.hostName.trim().length < 3) errors.hostName = 'Indiquez le nom complet du contact.';
+      if (phoneDigits.length < 8 || phoneDigits.length > 15 || !/^\+?[0-9\s().-]+$/.test(property.hostPhone.trim())) errors.hostPhone = 'Saisissez un numéro de téléphone valide.';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(property.hostEmail.trim())) errors.hostEmail = 'Saisissez une adresse e-mail valide.';
+    }
+    if (step === 7 && !property.coverImage.trim()) errors.coverImage = 'Choisissez ou importez une photo de couverture.';
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) {
+      setError('Corrigez les champs signalés avant de continuer.');
       return false;
     }
-
+    setError('');
     return true;
   };
 
@@ -342,6 +374,11 @@ export default function NewPropertyPage() {
   };
 
   const goToStep = (step: number) => {
+    if (step > currentStep) {
+      for (let previousStep = currentStep; previousStep < step; previousStep += 1) {
+        if (!validateStep(previousStep)) return;
+      }
+    }
     setCurrentStep(step);
     setError('');
     window.requestAnimationFrame(() => {
@@ -350,7 +387,13 @@ export default function NewPropertyPage() {
   };
 
   const submitProperty = async () => {
-    if (!validateStep() || isSubmitting) return;
+    if (isSubmitting) return;
+    for (let step = 1; step < steps.length; step += 1) {
+      if (!validateStep(step)) {
+        setCurrentStep(step);
+        return;
+      }
+    }
     setIsSubmitting(true);
 
     try {
@@ -517,14 +560,17 @@ export default function NewPropertyPage() {
               {steps.map((step) => {
                 const isActive = currentStep === step.id;
                 const isDone = currentStep > step.id;
+                const isLocked = step.id > currentStep;
 
                 return (
                   <button
                     key={step.id}
                     type="button"
                     onClick={() => goToStep(step.id)}
+                    disabled={isLocked}
+                    aria-label={isLocked ? `${step.label} : validez l’étape en cours pour la déverrouiller` : step.label}
                     className={`flex w-full flex-col items-center gap-2 rounded-xl p-2 text-center lg:flex-row lg:gap-3 lg:p-3 lg:text-left ${
-                      isActive ? 'bg-white text-[#17232c]' : 'text-white/65'
+                      isActive ? 'bg-white text-[#17232c]' : isLocked ? 'cursor-not-allowed text-white/35' : 'text-white/65'
                     }`}
                   >
                     <span
@@ -604,18 +650,19 @@ export default function NewPropertyPage() {
                     description="Le nom sera visible en haut du livret voyageur."
                   >
                     <div className="grid gap-5 sm:grid-cols-2">
-                      <Field label="Nom du logement" className="sm:col-span-2">
+                      <Field label="Nom du logement *" error={fieldErrors.name} className="sm:col-span-2">
                         <Input
                           value={property.name}
                           onChange={(event) =>
                             updateProperty('name', event.target.value)
                           }
                           placeholder="Ex. L’Atelier des Batignolles"
-                          className={fieldClass}
+                          className={`${fieldClass} ${fieldErrors.name ? 'border-[#c4492f]' : ''}`}
+                          aria-invalid={Boolean(fieldErrors.name)}
                           required
                         />
                       </Field>
-                      <Field label="Type de logement">
+                      <Field label="Type de logement *" error={fieldErrors.type}>
                         <select
                           value={property.type}
                           onChange={(event) =>
@@ -632,7 +679,7 @@ export default function NewPropertyPage() {
                         </select>
                       </Field>
                       <div className="grid grid-cols-2 gap-3">
-                        <Field label="Voyageurs">
+                      <Field label="Voyageurs *" error={fieldErrors.capacity}>
                           <Input
                             type="number"
                             min={1}
@@ -644,10 +691,11 @@ export default function NewPropertyPage() {
                                 Number(event.target.value)
                               )
                             }
-                            className={fieldClass}
+                            className={`${fieldClass} ${fieldErrors.capacity ? 'border-[#c4492f]' : ''}`}
+                            aria-invalid={Boolean(fieldErrors.capacity)}
                           />
                         </Field>
-                        <Field label="Chambres">
+                      <Field label="Chambres *" error={fieldErrors.bedrooms}>
                           <Input
                             type="number"
                             min={0}
@@ -659,7 +707,8 @@ export default function NewPropertyPage() {
                                 Number(event.target.value)
                               )
                             }
-                            className={fieldClass}
+                            className={`${fieldClass} ${fieldErrors.bedrooms ? 'border-[#c4492f]' : ''}`}
+                            aria-invalid={Boolean(fieldErrors.bedrooms)}
                           />
                         </Field>
                       </div>
@@ -672,14 +721,15 @@ export default function NewPropertyPage() {
                     description="Elle servira au bouton d’itinéraire du livret."
                   >
                     <div className="grid gap-5 sm:grid-cols-2">
-                      <Field label="Adresse" className="sm:col-span-2">
+                      <Field label="Adresse *" error={fieldErrors.address} className="sm:col-span-2">
                         <div className="relative">
                           <Input
                             value={property.address}
                             onChange={(event) => updateProperty('address', event.target.value)}
                             onBlur={() => window.setTimeout(() => setAddressSuggestions([]), 150)}
                             placeholder="12 rue des Batignolles"
-                            className={fieldClass}
+                            className={`${fieldClass} ${fieldErrors.address ? 'border-[#c4492f]' : ''}`}
+                            aria-invalid={Boolean(fieldErrors.address)}
                             autoComplete="street-address"
                             required
                           />
@@ -695,25 +745,30 @@ export default function NewPropertyPage() {
                           )}
                         </div>
                       </Field>
-                      <Field label="Ville">
+                      <Field label="Ville *" error={fieldErrors.city}>
                         <Input
                           value={property.city}
                           onChange={(event) =>
                             updateProperty('city', event.target.value)
                           }
                           placeholder="Paris"
-                          className={fieldClass}
+                          className={`${fieldClass} ${fieldErrors.city ? 'border-[#c4492f]' : ''}`}
+                          aria-invalid={Boolean(fieldErrors.city)}
                           required
                         />
                       </Field>
-                      <Field label="Code postal">
+                      <Field label="Code postal *" error={fieldErrors.postalCode}>
                         <Input
                           value={property.postalCode}
                           onChange={(event) =>
                             updateProperty('postalCode', event.target.value)
                           }
                           placeholder="75008"
-                          className={fieldClass}
+                          inputMode="numeric"
+                          pattern="[0-9]{5}"
+                          maxLength={5}
+                          className={`${fieldClass} ${fieldErrors.postalCode ? 'border-[#c4492f]' : ''}`}
+                          aria-invalid={Boolean(fieldErrors.postalCode)}
                           required
                         />
                       </Field>
@@ -730,24 +785,26 @@ export default function NewPropertyPage() {
                     description="Ces horaires seront affichés dès le début du livret."
                   >
                     <div className="grid gap-5 sm:grid-cols-2">
-                      <Field label="Heure d’arrivée">
+                      <Field label="Heure d’arrivée *" error={fieldErrors.checkIn}>
                         <Input
                           type="time"
                           value={property.checkIn}
                           onChange={(event) =>
                             updateProperty('checkIn', event.target.value)
                           }
-                          className={fieldClass}
+                          className={`${fieldClass} ${fieldErrors.checkIn ? 'border-[#c4492f]' : ''}`}
+                          aria-invalid={Boolean(fieldErrors.checkIn)}
                         />
                       </Field>
-                      <Field label="Heure de départ">
+                      <Field label="Heure de départ *" error={fieldErrors.checkOut}>
                         <Input
                           type="time"
                           value={property.checkOut}
                           onChange={(event) =>
                             updateProperty('checkOut', event.target.value)
                           }
-                          className={fieldClass}
+                          className={`${fieldClass} ${fieldErrors.checkOut ? 'border-[#c4492f]' : ''}`}
+                          aria-invalid={Boolean(fieldErrors.checkOut)}
                         />
                       </Field>
                     </div>
@@ -759,7 +816,7 @@ export default function NewPropertyPage() {
                     description="Décrivez chaque étape depuis l’arrivée dans la rue jusqu’à l’ouverture de la porte."
                   >
                     <div className="space-y-5">
-                      <Field label="Instructions d’arrivée">
+                      <Field label="Instructions d’arrivée *" error={fieldErrors.arrivalInstructions}>
                         <Textarea
                           value={property.arrivalInstructions}
                           onChange={(event) =>
@@ -771,7 +828,7 @@ export default function NewPropertyPage() {
                         />
                       </Field>
                       <div className="grid gap-5 sm:grid-cols-2">
-                        <Field label="Code d’accès / boîte à clés">
+                      <Field label="Code d’accès / boîte à clés *" error={fieldErrors.accessCode}>
                           <Input
                             value={property.accessCode}
                             onChange={(event) =>
@@ -781,7 +838,7 @@ export default function NewPropertyPage() {
                             className={fieldClass}
                           />
                         </Field>
-                        <Field label="Stationnement">
+                      <Field label="Stationnement *" error={fieldErrors.parkingInstructions}>
                           <Input
                             value={property.parkingInstructions}
                             onChange={(event) =>
@@ -792,7 +849,7 @@ export default function NewPropertyPage() {
                           />
                         </Field>
                       </div>
-                      <Field label="Consignes de départ">
+                      <Field label="Consignes de départ *" error={fieldErrors.departureInstructions}>
                         <Textarea
                           value={property.departureInstructions}
                           onChange={(event) =>
@@ -811,7 +868,7 @@ export default function NewPropertyPage() {
                     description="Les voyageurs pourront copier ces informations en un geste."
                   >
                     <div className="grid gap-5 sm:grid-cols-2">
-                      <Field label="Nom du réseau">
+                      <Field label="Nom du réseau *" error={fieldErrors.wifiName}>
                         <Input
                           value={property.wifiName}
                           onChange={(event) =>
@@ -821,7 +878,7 @@ export default function NewPropertyPage() {
                           className={fieldClass}
                         />
                       </Field>
-                      <Field label="Mot de passe">
+                      <Field label="Mot de passe *" error={fieldErrors.wifiPassword}>
                         <Input
                           value={property.wifiPassword}
                           onChange={(event) =>
@@ -839,7 +896,7 @@ export default function NewPropertyPage() {
                     title="Message de bienvenue"
                     description="Une courte présentation donne immédiatement le ton du séjour."
                   >
-                    <Field label="Présentation">
+                    <Field label="Présentation *" error={fieldErrors.description}>
                       <Textarea
                         value={property.description}
                         onChange={(event) =>
@@ -855,15 +912,7 @@ export default function NewPropertyPage() {
               )}
 
               {currentStep === 3 && (
-                <EditableStringList
-                  icon={Wifi}
-                  title="Équipements du logement"
-                  description="Ajoutez chaque équipement que le voyageur pourra retrouver dans le livret."
-                  items={property.amenities ?? []}
-                  placeholder="Ex. Machine à café, climatisation, lave-linge…"
-                  onChange={(items) => updateProperty('amenities', items)}
-                  addLabel="Ajouter un équipement"
-                />
+                <div><EditableStringList icon={Wifi} title="Équipements du logement" description="Ajoutez chaque équipement que le voyageur pourra retrouver dans le livret." items={property.amenities ?? []} placeholder="Ex. Machine à café, climatisation, lave-linge…" onChange={(items) => updateProperty('amenities', items)} addLabel="Ajouter un équipement" />{fieldErrors.amenities && <p role="alert" className="mt-3 text-sm font-medium text-[#b8453c]">{fieldErrors.amenities}</p>}</div>
               )}
 
               {currentStep === 4 && (
@@ -886,14 +935,12 @@ export default function NewPropertyPage() {
                     onChange={(items) => updateProperty('faqItems', items)}
                     addLabel="Ajouter une question"
                   />
+                  {(fieldErrors.houseRules || fieldErrors.faqItems) && <p role="alert" className="text-sm font-medium text-[#b8453c]">{fieldErrors.houseRules || fieldErrors.faqItems}</p>}
                 </div>
               )}
 
               {currentStep === 5 && (
-                <NearbyPlacesEditor
-                  places={property.nearbyPlaces ?? []}
-                  onChange={(places) => updateProperty('nearbyPlaces', places)}
-                />
+                <div><NearbyPlacesEditor places={property.nearbyPlaces ?? []} onChange={(places) => updateProperty('nearbyPlaces', places)} />{fieldErrors.nearbyPlaces && <p role="alert" className="mt-3 text-sm font-medium text-[#b8453c]">{fieldErrors.nearbyPlaces}</p>}</div>
               )}
 
               {currentStep === 6 && (
@@ -903,7 +950,7 @@ export default function NewPropertyPage() {
                   description="Cette personne sera mise en avant dans la carte « Votre hôte »."
                 >
                   <div className="grid gap-5 sm:grid-cols-2">
-                    <Field label="Nom complet" className="sm:col-span-2">
+                    <Field label="Nom complet *" error={fieldErrors.hostName} className="sm:col-span-2">
                       <Input
                         value={property.hostName}
                         onChange={(event) =>
@@ -914,26 +961,30 @@ export default function NewPropertyPage() {
                         required
                       />
                     </Field>
-                    <Field label="Téléphone">
+                      <Field label="Téléphone *" error={fieldErrors.hostPhone}>
                       <Input
-                        type="tel"
+                          type="tel"
                         value={property.hostPhone}
                         onChange={(event) =>
                           updateProperty('hostPhone', event.target.value)
                         }
-                        placeholder="+33 6 12 34 56 78"
+                          placeholder="+33 6 12 34 56 78"
+                          inputMode="tel"
+                          autoComplete="tel"
+                          pattern="\\+?[0-9 .()-]{8,20}"
                         className={fieldClass}
                         required
                       />
                     </Field>
-                    <Field label="Adresse e-mail">
+                      <Field label="Adresse e-mail *" error={fieldErrors.hostEmail}>
                       <Input
                         type="email"
                         value={property.hostEmail}
                         onChange={(event) =>
                           updateProperty('hostEmail', event.target.value)
                         }
-                        placeholder="marie@exemple.fr"
+                          placeholder="marie@exemple.fr"
+                          autoComplete="email"
                         className={fieldClass}
                         required
                       />
@@ -1025,6 +1076,7 @@ export default function NewPropertyPage() {
                       {uploading === 'cover' ? 'Envoi de la couverture…' : 'Importer depuis mon appareil'}
                     </Button>
                     <p className="mt-2 text-xs leading-5 text-[#77736f]">JPG, PNG, WebP ou AVIF · 10 Mo maximum.</p>
+                    {fieldErrors.coverImage && <p role="alert" className="mt-2 text-sm font-medium text-[#b8453c]">{fieldErrors.coverImage}</p>}
                   </FormSection>
 
                   <FormSection
@@ -1256,16 +1308,19 @@ function FormSection({
 function Field({
   label,
   className = '',
+  error,
   children,
 }: {
   label: string;
   className?: string;
+  error?: string;
   children: React.ReactNode;
 }) {
   return (
     <label className={`block space-y-2 ${className}`}>
       <span className="text-xs font-semibold text-[#4f5151]">{label}</span>
       {children}
+      {error && <span role="alert" className="block text-xs leading-5 text-[#b8453c]">{error}</span>}
     </label>
   );
 }
