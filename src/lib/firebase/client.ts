@@ -4,25 +4,17 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+  // Firebase web configuration is public by design. The fallbacks let static
+  // builds complete even when a hosting provider has not injected .env.local.
+  // Environment variables still take precedence for every deployment.
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaSyCy0u_hD47oZrAlgXsKTsyNFYLioB1Tgyk',
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'livret-airbnb-a871e.firebaseapp.com',
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'livret-airbnb-a871e',
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 'livret-airbnb-a871e.firebasestorage.app',
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '1082913311627',
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '1:1082913311627:web:eed49736c7eecc82c77d8e',
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || 'G-PFBYQSW997',
 };
-
-const requiredConfig = [
-  firebaseConfig.apiKey,
-  firebaseConfig.authDomain,
-  firebaseConfig.projectId,
-  firebaseConfig.appId,
-];
-
-if (requiredConfig.some((value) => !value)) {
-  throw new Error('La configuration Firebase publique est incomplète.');
-}
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
