@@ -28,6 +28,11 @@ export interface OwnerProperty {
   parkingInstructions?: string;
   departureInstructions?: string;
   amenities?: string[];
+  equipmentGuides?: Array<{
+    name: string;
+    instructions: string;
+    imageUrl: string;
+  }>;
   houseRules?: string[];
   faqItems?: string[];
   nearbyPlaces?: Array<{

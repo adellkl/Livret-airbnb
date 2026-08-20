@@ -50,6 +50,11 @@ export function toOwnerProperty(property: DatabaseProperty): OwnerProperty {
     amenities: Array.isArray(property.amenities)
       ? property.amenities.map(String).filter(Boolean)
       : [],
+    equipmentGuides: Array.isArray(property.equipmentGuides)
+      ? property.equipmentGuides
+        .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+        .map((item) => ({ name: String(item.name ?? ''), instructions: String(item.instructions ?? ''), imageUrl: String(item.imageUrl ?? '') }))
+      : [],
     houseRules: Array.isArray(property.houseRules)
       ? property.houseRules.map(String).filter(Boolean)
       : [],

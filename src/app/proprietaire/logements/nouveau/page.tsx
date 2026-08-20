@@ -90,13 +90,6 @@ const steps = [
   },
 ];
 
-const coverPresets = [
-  'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&h=800&fit=crop',
-  'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=1200&h=800&fit=crop',
-  'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=1200&h=800&fit=crop',
-  'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1200&h=800&fit=crop',
-];
-
 type PropertyDraft = Omit<
   OwnerProperty,
   'id' | 'views' | 'completion' | 'updatedAt'
@@ -125,13 +118,14 @@ const initialProperty: PropertyDraft = {
   hostName: '',
   hostPhone: '',
   hostEmail: '',
-  coverImage: coverPresets[0],
+  coverImage: '',
   status: 'draft',
   arrivalInstructions: '',
   accessCode: '',
   parkingInstructions: '',
   departureInstructions: '',
   amenities: ['Wi-Fi', 'Cuisine équipée', 'Linge de maison'],
+  equipmentGuides: [],
   houseRules: ['Logement non-fumeur', 'Pas de fête ni soirée'],
   faqItems: ['Où jeter les poubelles ? — Dans le local au rez-de-chaussée.'],
   nearbyPlaces: [
@@ -172,6 +166,8 @@ export default function NewPropertyPage() {
   const formRef = useRef<HTMLFormElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  const equipmentInputRef = useRef<HTMLInputElement>(null);
+  const [equipmentUploadIndex, setEquipmentUploadIndex] = useState<number | null>(null);
 
   const progress = (currentStep / steps.length) * 100;
   const currentStepData = steps[currentStep - 1];
@@ -284,6 +280,25 @@ export default function NewPropertyPage() {
     }
   };
 
+  const uploadEquipmentImage = async (event: ChangeEvent<HTMLInputElement>) => {
+    const [file] = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (!file || equipmentUploadIndex === null) return;
+
+    setUploading('gallery');
+    setError('');
+    try {
+      const imageUrl = await uploadImage(file);
+      updateProperty('equipmentGuides', (property.equipmentGuides ?? []).map((item, index) => index === equipmentUploadIndex ? { ...item, imageUrl } : item));
+    } catch (uploadError) {
+      const code = uploadError instanceof Error ? uploadError.message : '';
+      setError(code === 'file-type' ? 'Choisissez un fichier image (JPG, PNG, WebP…).' : code === 'file-size' ? 'L’image est trop volumineuse. La taille maximale est de 10 Mo.' : 'Impossible d’envoyer l’image de cet équipement.');
+    } finally {
+      setEquipmentUploadIndex(null);
+      setUploading(null);
+    }
+  };
+
   useEffect(() => {
     const search = property.address.trim();
     if (search.length < 3) {
@@ -338,8 +353,8 @@ export default function NewPropertyPage() {
       if (property.description.trim().length < 20) errors.description = 'Ajoutez une présentation d’au moins 20 caractères.';
     }
 
-    if (step === 3 && !(property.amenities ?? []).some((item) => item.trim())) {
-      errors.amenities = 'Ajoutez au moins un équipement.';
+    if (step === 3 && !(property.equipmentGuides ?? []).some((item) => item.name.trim() && item.imageUrl.trim())) {
+      errors.equipmentGuides = 'Ajoutez au moins un équipement avec sa photo importée ou le lien de son image.';
     }
     if (step === 4) {
       if (!(property.houseRules ?? []).some((item) => item.trim())) errors.houseRules = 'Ajoutez au moins une règle de la maison.';
@@ -416,9 +431,10 @@ export default function NewPropertyPage() {
         setError('La formule gratuite comprend un logement. Passez à Pro pour créer et gérer tous vos logements.');
         return;
       }
-      const amenities = (property.amenities ?? [])
-        .map((item) => item.trim())
-        .filter(Boolean);
+      const equipmentGuides = (property.equipmentGuides ?? [])
+        .filter((item) => item.name.trim() && item.imageUrl.trim())
+        .map((item) => ({ name: item.name.trim(), instructions: item.instructions.trim(), imageUrl: item.imageUrl.trim() }));
+      const amenities = equipmentGuides.map((item) => item.name);
       const houseRules = (property.houseRules ?? [])
         .map((item) => item.trim())
         .filter(Boolean);
@@ -469,6 +485,7 @@ export default function NewPropertyPage() {
         gallery,
         welcomeSubtitle: property.welcomeSubtitle?.trim() || '', hostMessage: property.hostMessage?.trim() || '', theme: property.theme ?? 'terra', language: property.language ?? 'fr', showWifi: property.showWifi ?? true, showMap: property.showMap ?? true, showFaq: property.showFaq ?? true, showGallery: property.showGallery ?? true,
         amenities,
+        equipmentGuides,
         houseRules,
         faqItems,
         nearbyPlaces,
@@ -912,7 +929,14 @@ export default function NewPropertyPage() {
               )}
 
               {currentStep === 3 && (
-                <div><EditableStringList icon={Wifi} title="Équipements du logement" description="Ajoutez chaque équipement que le voyageur pourra retrouver dans le livret." items={property.amenities ?? []} placeholder="Ex. Machine à café, climatisation, lave-linge…" onChange={(items) => updateProperty('amenities', items)} addLabel="Ajouter un équipement" />{fieldErrors.amenities && <p role="alert" className="mt-3 text-sm font-medium text-[#b8453c]">{fieldErrors.amenities}</p>}</div>
+                <FormSection icon={Wifi} title="Équipements du logement" description="Ajoutez un équipement, son mode d’emploi et une photo importée depuis votre appareil ou une URL directe.">
+                  <div className="space-y-4">
+                    {(property.equipmentGuides ?? []).map((equipment, index) => <div key={index} className="grid gap-3 rounded-2xl border border-[#e6dfd8] bg-white p-4 sm:grid-cols-[120px_1fr_auto]"><div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-[#f3eee8]">{equipment.imageUrl ? <Image src={equipment.imageUrl} alt={equipment.name || 'Équipement'} fill unoptimized sizes="120px" className="object-cover" /> : <ImageIcon className="absolute inset-0 m-auto text-[#a39c95]" size={24} />}</div><div className="space-y-3"><Input value={equipment.name} onChange={(event) => updateProperty('equipmentGuides', (property.equipmentGuides ?? []).map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} placeholder="Ex. Machine à café" className={fieldClass} /><Textarea value={equipment.instructions} onChange={(event) => updateProperty('equipmentGuides', (property.equipmentGuides ?? []).map((item, itemIndex) => itemIndex === index ? { ...item, instructions: event.target.value } : item))} placeholder="Mode d’emploi (facultatif)" className="min-h-20 resize-none rounded-xl border-[#ded8d1] bg-white p-3 shadow-none" /><div className="grid gap-2 sm:grid-cols-2"><Button type="button" variant="outline" onClick={() => { setEquipmentUploadIndex(index); equipmentInputRef.current?.click(); }} disabled={uploading !== null} className="rounded-xl"><Upload className="mr-2 h-4 w-4" />Importer une photo</Button><Input type="url" value={equipment.imageUrl} onChange={(event) => updateProperty('equipmentGuides', (property.equipmentGuides ?? []).map((item, itemIndex) => itemIndex === index ? { ...item, imageUrl: event.target.value } : item))} placeholder="Lien direct de l’image" className={fieldClass} /></div></div><button type="button" onClick={() => updateProperty('equipmentGuides', (property.equipmentGuides ?? []).filter((_, itemIndex) => itemIndex !== index))} className="self-start rounded-xl p-3 text-[#b8453c] hover:bg-[#fdeceb]" aria-label="Supprimer cet équipement"><Trash2 size={18} /></button></div>)}
+                    <input ref={equipmentInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="sr-only" onChange={(event) => void uploadEquipmentImage(event)} />
+                    <Button type="button" variant="outline" onClick={() => updateProperty('equipmentGuides', [...(property.equipmentGuides ?? []), { name: '', instructions: '', imageUrl: '' }])} className="w-full rounded-xl border-dashed"><Plus className="mr-2 h-4 w-4" />Ajouter un équipement</Button>
+                    {fieldErrors.equipmentGuides && <p role="alert" className="text-sm font-medium text-[#b8453c]">{fieldErrors.equipmentGuides}</p>}
+                  </div>
+                </FormSection>
               )}
 
               {currentStep === 4 && (
@@ -1017,14 +1041,7 @@ export default function NewPropertyPage() {
                     description="Choisissez une image qui représente immédiatement le logement."
                   >
                     <div className="relative aspect-[16/8] overflow-hidden rounded-2xl bg-[#ece7e1]">
-                      <Image
-                        src={property.coverImage}
-                        alt="Aperçu de la couverture"
-                        fill
-                        unoptimized
-                        sizes="(max-width: 1024px) 100vw, 700px"
-                        className="object-cover"
-                      />
+                      {property.coverImage ? <Image src={property.coverImage} alt="Aperçu de la couverture" fill unoptimized sizes="(max-width: 1024px) 100vw, 700px" className="object-cover" /> : <div className="flex h-full items-center justify-center text-sm font-medium text-[#77736f]"><ImageIcon className="mr-2 h-5 w-5" />Aucune photo sélectionnée</div>}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
                       <div className="absolute inset-x-0 bottom-0 p-5 text-white">
                         <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/65">
@@ -1034,29 +1051,6 @@ export default function NewPropertyPage() {
                           {property.name || 'Nom du logement'}
                         </p>
                       </div>
-                    </div>
-                    <div className="mt-4 grid grid-cols-4 gap-2">
-                      {coverPresets.map((image) => (
-                        <button
-                          key={image}
-                          type="button"
-                          onClick={() => updateProperty('coverImage', image)}
-                          className={`relative aspect-[4/3] overflow-hidden rounded-xl border-2 ${
-                            property.coverImage === image
-                              ? 'border-[#d85b24]'
-                              : 'border-transparent'
-                          }`}
-                        >
-                          <Image
-                            src={image}
-                            alt=""
-                            fill
-                            unoptimized
-                            sizes="150px"
-                            className="object-cover"
-                          />
-                        </button>
-                      ))}
                     </div>
                     <input
                       ref={coverInputRef}
@@ -1075,7 +1069,8 @@ export default function NewPropertyPage() {
                       <Upload className="mr-2 h-4 w-4" />
                       {uploading === 'cover' ? 'Envoi de la couverture…' : 'Importer depuis mon appareil'}
                     </Button>
-                    <p className="mt-2 text-xs leading-5 text-[#77736f]">JPG, PNG, WebP ou AVIF · 10 Mo maximum.</p>
+                    <div className="mt-3"><Field label="Ou collez le lien d’une image"><Input type="url" value={property.coverImage} onChange={(event) => updateProperty('coverImage', event.target.value)} placeholder="https://images.google.com/…" className={fieldClass} /></Field></div>
+                    <p className="mt-2 text-xs leading-5 text-[#77736f]">JPG, PNG, WebP ou AVIF · 10 Mo maximum. Vous pouvez aussi utiliser l’URL directe d’une image.</p>
                     {fieldErrors.coverImage && <p role="alert" className="mt-2 text-sm font-medium text-[#b8453c]">{fieldErrors.coverImage}</p>}
                   </FormSection>
 

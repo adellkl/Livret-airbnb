@@ -87,7 +87,7 @@ function getCityVisual(property: OwnerProperty): CityVisual {
   );
 }
 
-const equipmentCards = [
+const fallbackEquipmentCards = [
   {
     title: 'Télévision',
     subtitle: 'Guide rapide',
@@ -150,6 +150,8 @@ const equipmentCards = [
   },
 ];
 
+type EquipmentCard = (typeof fallbackEquipmentCards)[number];
+
 type NearbyFilter = string;
 
 const checkoutTasks = [
@@ -176,7 +178,7 @@ export default function PublicBookletPage() {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [headerScrolled, setHeaderScrolled] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState<
-    (typeof equipmentCards)[number] | null
+    EquipmentCard | null
   >(null);
   const equipmentGuideRef = useRef<HTMLDivElement>(null);
   const nearbyPlacesRef = useRef<HTMLDivElement>(null);
@@ -198,6 +200,16 @@ export default function PublicBookletPage() {
       ? propertyNearbyPlaces
       : propertyNearbyPlaces.filter((place) => place.filter === nearbyFilter);
   const cityVisual = getCityVisual(property);
+  const equipmentCards: EquipmentCard[] = (property.equipmentGuides ?? [])
+    .filter((equipment) => equipment.name.trim() && equipment.imageUrl.trim())
+    .map((equipment) => ({
+      title: equipment.name,
+      subtitle: 'Guide de votre hôte',
+      icon: Coffee,
+      description: equipment.instructions || 'Les indications de votre hôte sont à retrouver dans ce guide.',
+      steps: equipment.instructions ? [equipment.instructions] : ['Consultez les indications de votre hôte.'],
+      image: equipment.imageUrl,
+    }));
   const hostFirstName = property.hostName.split(' ')[0] || property.hostName;
   const guideFaqs = property.faqItems?.length
     ? property.faqItems.map((question) => ({ question, answer: `Pour cette information, contactez ${hostFirstName || 'votre hôte'} si besoin.` }))
@@ -238,6 +250,7 @@ export default function PublicBookletPage() {
         accessCode: String(data.accessCode ?? ''), parkingInstructions: String(data.parkingInstructions ?? ''),
         departureInstructions: String(data.departureInstructions ?? ''), welcomeTitle: String(data.welcomeTitle ?? ''), accentColor: String(data.accentColor ?? '#d85b24'),
         amenities: Array.isArray(data.amenities) ? data.amenities.map(String) : [],
+        equipmentGuides: Array.isArray(data.equipmentGuides) ? data.equipmentGuides.map((item) => ({ name: String(item?.name ?? ''), instructions: String(item?.instructions ?? ''), imageUrl: String(item?.imageUrl ?? '') })) : [],
         houseRules: Array.isArray(data.houseRules) ? data.houseRules.map(String) : [],
         faqItems: Array.isArray(data.faqItems) ? data.faqItems.map(String) : [],
         nearbyPlaces: Array.isArray(data.nearbyPlaces) ? data.nearbyPlaces.map((place) => ({ name: String(place?.name ?? ''), category: String(place?.category ?? ''), address: String(place?.address ?? ''), note: String(place?.note ?? '') })) : [],
@@ -405,7 +418,7 @@ export default function PublicBookletPage() {
   };
 
   const openEquipmentGuide = (
-    equipment: (typeof equipmentCards)[number]
+    equipment: EquipmentCard
   ) => {
     setSelectedEquipment(equipment);
     window.setTimeout(() => {
