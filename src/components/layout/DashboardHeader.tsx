@@ -30,7 +30,7 @@ export default function DashboardHeader({ title, subtitle }: DashboardHeaderProp
       if (active) setEmail(user.email ?? '');
       const profile = await getDoc(doc(firestore, 'profiles', user.uid));
       const data = profile.data();
-      if (active) setProfileName(data?.organizationName || data?.fullName || user.email || 'Mon compte');
+      if (active) setProfileName(data?.fullName || data?.organizationName || user.email || 'Mon compte');
     };
     const unsubscribe = onAuthStateChanged(firebaseAuth, () => { void loadProfile(); });
     return () => { active = false; unsubscribe(); };
