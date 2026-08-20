@@ -180,6 +180,7 @@ export default function PublicBookletPage() {
   const [selectedEquipment, setSelectedEquipment] = useState<
     EquipmentCard | null
   >(null);
+  const [isClosingEquipment, setIsClosingEquipment] = useState(false);
   const equipmentGuideRef = useRef<HTMLDivElement>(null);
   const nearbyPlacesRef = useRef<HTMLDivElement>(null);
   const heroSectionRef = useRef<HTMLElement>(null);
@@ -200,6 +201,7 @@ export default function PublicBookletPage() {
       ? propertyNearbyPlaces
       : propertyNearbyPlaces.filter((place) => place.filter === nearbyFilter);
   const cityVisual = getCityVisual(property);
+  const heroImage = property.coverImage.trim() || property.gallery?.find((photo) => photo.url.trim())?.url.trim() || cityVisual.image;
   const equipmentCards: EquipmentCard[] = (property.equipmentGuides ?? [])
     .filter((equipment) => equipment.name.trim() && equipment.imageUrl.trim())
     .map((equipment) => ({
@@ -420,10 +422,19 @@ export default function PublicBookletPage() {
   const openEquipmentGuide = (
     equipment: EquipmentCard
   ) => {
+    setIsClosingEquipment(false);
     setSelectedEquipment(equipment);
     window.setTimeout(() => {
       equipmentGuideRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }, 0);
+  };
+
+  const closeEquipmentGuide = () => {
+    setIsClosingEquipment(true);
+    window.setTimeout(() => {
+      setSelectedEquipment(null);
+      setIsClosingEquipment(false);
+    }, 240);
   };
 
   const selectNearbyFilter = (filter: NearbyFilter) => {
@@ -506,14 +517,14 @@ export default function PublicBookletPage() {
               className="absolute -inset-[8%] will-change-transform"
             >
               <Image
-                src={cityVisual.image}
-                alt={`Vue emblématique de ${property.city}`}
+                src={heroImage}
+                alt={`Photo de ${property.name || 'votre logement'}`}
                 fill
                 priority
                 unoptimized
                 sizes="(max-width: 560px) 100vw, 560px"
-                className="animate-[fadeIn_.65s_ease-out] object-cover saturate-[1.04] contrast-[1.04]"
-                style={{ objectPosition: cityVisual.imagePosition }}
+                className="animate-[fadeIn_.65s_ease-out] object-cover opacity-80 saturate-[1.04] contrast-[1.04]"
+                style={{ objectPosition: property.coverImage.trim() ? '50% 50%' : cityVisual.imagePosition }}
               />
               <div className="absolute inset-0 bg-gradient-to-b from-[#06131c]/48 via-[#071821]/6 to-[#05141d]/92" />
               <div className="absolute inset-0 bg-[linear-gradient(105deg,rgba(8,24,34,.28),transparent_58%)]" />
@@ -776,7 +787,7 @@ export default function PublicBookletPage() {
                   ))}
                 </div>
 
-                <div className="mt-6 grid grid-cols-1 gap-2 min-[390px]:grid-cols-2">
+                <div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <button
                     type="button"
                     className="flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl bg-[#f3eee8] px-2 py-3 text-[13px] font-semibold"
@@ -1308,7 +1319,7 @@ export default function PublicBookletPage() {
             role="dialog"
             aria-modal="true"
             aria-label={`Guide ${selectedEquipment.title}`}
-            className="fixed inset-0 z-[70] mx-auto flex max-w-[560px] flex-col overflow-hidden overscroll-none bg-[#f4f1ed]"
+            className={`fixed inset-0 z-[70] mx-auto flex max-w-[560px] flex-col overflow-hidden overscroll-none bg-[#f4f1ed] ${isClosingEquipment ? 'guest-equipment-leave' : 'guest-equipment-enter'}`}
           >
             <div className="relative h-[36vh] min-h-[300px] shrink-0 overflow-hidden bg-[#e8e3dd]">
               <Image
@@ -1324,7 +1335,7 @@ export default function PublicBookletPage() {
               <div className="absolute inset-x-0 top-0 flex items-center justify-between p-5">
                 <button
                   type="button"
-                  onClick={() => setSelectedEquipment(null)}
+                  onClick={closeEquipmentGuide}
                   aria-label="Fermer le guide"
                   className="flex h-12 w-12 items-center justify-center rounded-full border border-white/50 bg-white/95 text-[#142c3f] shadow-[0_8px_24px_rgba(15,36,50,0.16)]"
                 >

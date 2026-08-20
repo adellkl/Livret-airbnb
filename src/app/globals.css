@@ -202,6 +202,36 @@
     }
   }
 
+  @keyframes equipmentGuideEnter {
+    from {
+      opacity: 0;
+      transform: translateY(26px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes equipmentGuideLeave {
+    from {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(18px) scale(0.99);
+    }
+  }
+
+  .guest-equipment-enter {
+    animation: equipmentGuideEnter 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .guest-equipment-leave {
+    animation: equipmentGuideLeave 240ms cubic-bezier(0.4, 0, 1, 1) both;
+  }
+
   .guest-hero-copy > * {
     animation: guestHeroReveal 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
@@ -297,6 +327,8 @@
     .guest-hero-copy > *,
     .guest-hero-avatar,
     .guest-hero-shine,
+    .guest-equipment-enter,
+    .guest-equipment-leave,
     [class*="animate-[marquee"] {
       animation: none !important;
       transition-duration: 0.01ms !important;
