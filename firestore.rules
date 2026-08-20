@@ -94,6 +94,24 @@ service cloud.firestore {
       allow update, delete: if ownsProperty(resource.data.propertyId);
     }
 
+    match /guide_messages/{messageId} {
+      // Guests are authenticated anonymously, so they can only access their
+      // own conversation while the property owner can moderate every message.
+      allow create: if signedIn()
+        && request.resource.data.propertyId is string
+        && request.resource.data.ownerId == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.ownerId
+        && request.resource.data.content is string
+        && request.resource.data.content.size() > 0
+        && request.resource.data.content.size() <= 1000
+        && ((request.resource.data.senderRole == 'guest'
+          && request.resource.data.guestId == request.auth.uid)
+          || (request.resource.data.senderRole == 'owner'
+            && ownsProperty(request.resource.data.propertyId)));
+      allow read: if ownsProperty(resource.data.propertyId)
+        || (signedIn() && resource.data.guestId == request.auth.uid);
+      allow update, delete: if ownsProperty(resource.data.propertyId);
+    }
+
     match /public_guides/{propertyId} {
       // A draft may be prepared in this mirror, but it must never be readable
       // through a public URL until its owner explicitly publishes it.

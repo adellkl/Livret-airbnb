@@ -25,6 +25,7 @@ import {
   Sparkles,
   Star,
   Thermometer,
+  Send,
   Utensils,
   Wifi,
   Wind,
@@ -34,8 +35,9 @@ import {
   DEFAULT_OWNER_PROPERTIES,
   type OwnerProperty,
 } from '@/lib/owner-properties';
-import { firestore } from '@/lib/firebase/client';
-import { addDoc, collection, doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { firebaseAuth, firestore } from '@/lib/firebase/client';
+import { addDoc, collection, doc, getDoc, onSnapshot, query, serverTimestamp, where } from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
 
 type CityVisual = {
   image: string;
@@ -154,6 +156,14 @@ type EquipmentCard = (typeof fallbackEquipmentCards)[number];
 
 type NearbyFilter = string;
 
+type GuideMessage = {
+  id: string;
+  content: string;
+  senderRole: 'guest' | 'owner';
+  moderationStatus: 'pending' | 'approved';
+  createdAt: Date | null;
+};
+
 const checkoutTasks = [
   'Fermer toutes les fenêtres',
   'Éteindre les lumières',
@@ -181,6 +191,12 @@ export default function PublicBookletPage() {
     EquipmentCard | null
   >(null);
   const [isClosingEquipment, setIsClosingEquipment] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [guestId, setGuestId] = useState('');
+  const [chatMessages, setChatMessages] = useState<GuideMessage[]>([]);
+  const [chatDraft, setChatDraft] = useState('');
+  const [chatError, setChatError] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
   const equipmentGuideRef = useRef<HTMLDivElement>(null);
   const nearbyPlacesRef = useRef<HTMLDivElement>(null);
   const heroSectionRef = useRef<HTMLElement>(null);
@@ -275,6 +291,43 @@ export default function PublicBookletPage() {
     void loadGuide();
     return () => { active = false; };
   }, [params.secureToken]);
+
+  useEffect(() => {
+    if (!chatOpen || !property.id) return;
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+
+    const startConversation = async () => {
+      try {
+        const currentUser = firebaseAuth.currentUser ?? (await signInAnonymously(firebaseAuth)).user;
+        if (!active) return;
+        setGuestId(currentUser.uid);
+        unsubscribe = onSnapshot(
+          query(collection(firestore, 'guide_messages'), where('guestId', '==', currentUser.uid)),
+          (snapshot) => {
+            if (!active) return;
+            setChatMessages(snapshot.docs
+              .map((message) => ({
+                id: message.id,
+                content: String(message.data().content ?? ''),
+                senderRole: message.data().senderRole === 'owner' ? 'owner' as const : 'guest' as const,
+                moderationStatus: message.data().moderationStatus === 'approved' ? 'approved' as const : 'pending' as const,
+                createdAt: message.data().createdAt?.toDate?.() ?? null,
+                propertyId: String(message.data().propertyId ?? ''),
+              }))
+              .filter((message) => message.propertyId === property.id)
+              .sort((first, second) => (first.createdAt?.getTime() ?? 0) - (second.createdAt?.getTime() ?? 0)));
+          },
+          () => setChatError('Impossible de charger la conversation pour le moment.'),
+        );
+      } catch {
+        if (active) setChatError('La messagerie n’est pas disponible pour le moment.');
+      }
+    };
+
+    void startConversation();
+    return () => { active = false; unsubscribe?.(); };
+  }, [chatOpen, property.id]);
 
   useEffect(() => {
     if (!ownerId || !params.secureToken) return;
@@ -438,6 +491,39 @@ export default function PublicBookletPage() {
     }, 240);
   };
 
+  const sendMessage = async () => {
+    const content = chatDraft.trim();
+    if (!content || !guestId || !ownerId) return;
+    if (content.length > 1000) {
+      setChatError('Votre message ne peut pas dépasser 1 000 caractères.');
+      return;
+    }
+    if (/https?:\/\/|www\.|[^\s@]+@[^\s@]+\.[^\s@]+|(?:\+?\d[\s.-]?){8,}/i.test(content)) {
+      setChatError('Pour votre sécurité, les liens, e-mails et numéros sont bloqués dans la messagerie.');
+      return;
+    }
+    setSendingMessage(true);
+    setChatError('');
+    try {
+      await addDoc(collection(firestore, 'guide_messages'), {
+        propertyId: property.id,
+        propertyName: property.name,
+        ownerId,
+        guestId,
+        guestName: 'Voyageur',
+        senderRole: 'guest',
+        content,
+        moderationStatus: 'pending',
+        createdAt: serverTimestamp(),
+      });
+      setChatDraft('');
+    } catch {
+      setChatError('Votre message n’a pas pu être envoyé. Réessayez dans un instant.');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
   const selectNearbyFilter = (filter: NearbyFilter) => {
     setNearbyFilter(filter);
   };
@@ -532,9 +618,9 @@ export default function PublicBookletPage() {
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(255,210,174,.2),transparent_31%)] mix-blend-screen" />
             </div>
 
-            <div className="relative z-10 flex h-full flex-col px-5 pb-5 pt-5 text-white sm:px-7 sm:pb-7">
+            <div className="relative flex h-full flex-col px-5 pb-5 pt-5 text-white sm:px-7 sm:pb-7">
               <div
-                className="fixed left-1/2 top-0 z-50 w-full max-w-[560px] -translate-x-1/2 px-3 pt-3 sm:px-5"
+                className="fixed left-1/2 top-0 z-[100] w-full max-w-[560px] -translate-x-1/2 px-3 pt-3 sm:px-5"
               >
                 <div
                   className={`flex items-center justify-between rounded-[1.25rem] border px-2 py-2 transition-all duration-500 ease-[cubic-bezier(.22,1,.36,1)] ${
@@ -1284,15 +1370,14 @@ export default function PublicBookletPage() {
                 </p>
 
                 <div className="mt-5 grid grid-cols-2 gap-2">
-                  <a
-                    href={`https://wa.me/${whatsappPhone}`}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => { setChatError(''); setChatOpen(true); }}
                     className="flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-white px-3 py-3 text-xs font-semibold text-[#102a3d]"
                   >
                     <MessageCircle size={16} />
                     Écrire à {hostFirstName}
-                  </a>
+                  </button>
                   <button
                     type="button"
                     onClick={() => scrollTo('welcome')}
@@ -1512,6 +1597,21 @@ export default function PublicBookletPage() {
                 </div>
               </section>
             </div>
+          </div>
+        )}
+
+        {chatOpen && (
+          <div role="dialog" aria-modal="true" aria-label={`Messagerie avec ${hostFirstName}`} className="fixed inset-0 z-[80] mx-auto flex max-w-[560px] flex-col bg-[#fbfaf8]">
+            <div className="flex items-center justify-between border-b border-[#142c3f]/8 bg-white px-5 py-4 shadow-sm">
+              <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#d9694d]">Messagerie privée</p><h2 className="mt-1 text-lg font-semibold">Écrire à {hostFirstName}</h2></div>
+              <button type="button" onClick={() => setChatOpen(false)} aria-label="Fermer la messagerie" className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f3eee8] text-[#142c3f]"><X size={19} /></button>
+            </div>
+            <div className="border-b border-[#d8e6df] bg-[#edf6f2] px-5 py-3 text-xs leading-5 text-[#39705f]"><ShieldCheck className="mr-1 inline h-4 w-4" />Vos échanges restent dans le livret. Les liens, e-mails et numéros sont filtrés pour votre sécurité.</div>
+            <div className="guest-scrollbar flex-1 space-y-3 overflow-y-auto px-5 py-5">
+              {!chatMessages.length && <div className="rounded-[1.5rem] border border-dashed border-[#d8d0c8] bg-white p-5 text-center text-sm leading-6 text-[#718087]">Dites bonjour à {hostFirstName}. Votre hôte recevra votre message ici.</div>}
+              {chatMessages.map((message) => <div key={message.id} className={`max-w-[85%] rounded-[1.25rem] px-4 py-3 text-sm leading-6 ${message.senderRole === 'guest' ? 'ml-auto bg-[#102a3d] text-white' : 'bg-white text-[#31434c] shadow-sm'}`}><p>{message.content}</p>{message.senderRole === 'guest' && message.moderationStatus === 'pending' && <p className="mt-1 text-[10px] text-white/60">En attente de validation</p>}</div>)}
+            </div>
+            <div className="border-t border-[#142c3f]/8 bg-white p-4"><div className="flex gap-2 rounded-[1.35rem] border border-[#dcd6cf] bg-[#fcfaf8] p-2"><textarea value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} maxLength={1000} rows={2} placeholder="Écrivez votre message…" className="min-h-12 flex-1 resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-[#98a0a2]" /><button type="button" onClick={sendMessage} disabled={sendingMessage || !chatDraft.trim() || !guestId} className="flex h-11 w-11 shrink-0 items-center justify-center self-end rounded-xl bg-[#d9694d] text-white disabled:opacity-40"><Send size={17} /></button></div>{chatError && <p role="alert" className="mt-2 text-xs text-[#b8453c]">{chatError}</p>}</div>
           </div>
         )}
 
