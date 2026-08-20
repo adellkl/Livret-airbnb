@@ -159,9 +159,15 @@ type GuideMessage = {
   id: string;
   content: string;
   senderRole: 'guest' | 'owner';
-  moderationStatus: 'pending' | 'approved';
   createdAt: Date | null;
 };
+
+const blockedMessageTerms = ['connard', 'connasse', 'encule', 'enfoire', 'salope', 'pute', 'pd', 'pedale'];
+
+function containsBlockedMessageTerm(message: string) {
+  const normalized = message.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr');
+  return blockedMessageTerms.some((term) => new RegExp(`(^|[^a-z])${term}([^a-z]|$)`, 'i').test(normalized));
+}
 
 const checkoutTasks = [
   'Fermer toutes les fenêtres',
@@ -310,7 +316,6 @@ export default function PublicBookletPage() {
                 id: message.id,
                 content: String(message.data().content ?? ''),
                 senderRole: message.data().senderRole === 'owner' ? 'owner' as const : 'guest' as const,
-                moderationStatus: message.data().moderationStatus === 'approved' ? 'approved' as const : 'pending' as const,
                 createdAt: message.data().createdAt?.toDate?.() ?? null,
                 propertyId: String(message.data().propertyId ?? ''),
               }))
@@ -497,8 +502,8 @@ export default function PublicBookletPage() {
       setChatError('Votre message ne peut pas dépasser 1 000 caractères.');
       return;
     }
-    if (/https?:\/\/|www\.|[^\s@]+@[^\s@]+\.[^\s@]+|(?:\+?\d[\s.-]?){8,}/i.test(content)) {
-      setChatError('Pour votre sécurité, les liens, e-mails et numéros sont bloqués dans la messagerie.');
+    if (containsBlockedMessageTerm(content)) {
+      setChatError('Ce message contient un terme interdit. Reformulez-le avant de l’envoyer.');
       return;
     }
     setSendingMessage(true);
@@ -512,7 +517,7 @@ export default function PublicBookletPage() {
         guestName: 'Voyageur',
         senderRole: 'guest',
         content,
-        moderationStatus: 'pending',
+        moderationStatus: 'approved',
         createdAt: serverTimestamp(),
       });
       setChatDraft('');
@@ -1605,10 +1610,10 @@ export default function PublicBookletPage() {
               <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#d9694d]">Messagerie privée</p><h2 className="mt-1 text-lg font-semibold">Écrire à {hostFirstName}</h2></div>
               <button type="button" onClick={() => setChatOpen(false)} aria-label="Fermer la messagerie" className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f3eee8] text-[#142c3f]"><X size={19} /></button>
             </div>
-            <div className="border-b border-[#d8e6df] bg-[#edf6f2] px-5 py-3 text-xs leading-5 text-[#39705f]"><ShieldCheck className="mr-1 inline h-4 w-4" />Vos échanges restent dans le livret. Les liens, e-mails et numéros sont filtrés pour votre sécurité.</div>
+            <div className="border-b border-[#d8e6df] bg-[#edf6f2] px-5 py-3 text-xs leading-5 text-[#39705f]"><ShieldCheck className="mr-1 inline h-4 w-4" />Vos messages arrivent instantanément dans le livret. Les propos insultants sont bloqués.</div>
             <div className="guest-scrollbar flex-1 space-y-3 overflow-y-auto px-5 py-5">
               {!chatMessages.length && <div className="rounded-[1.5rem] border border-dashed border-[#d8d0c8] bg-white p-5 text-center text-sm leading-6 text-[#718087]">Dites bonjour à {hostFirstName}. Votre hôte recevra votre message ici.</div>}
-              {chatMessages.map((message) => <div key={message.id} className={`max-w-[85%] rounded-[1.25rem] px-4 py-3 text-sm leading-6 ${message.senderRole === 'guest' ? 'ml-auto bg-[#102a3d] text-white' : 'bg-white text-[#31434c] shadow-sm'}`}><p>{message.content}</p>{message.senderRole === 'guest' && message.moderationStatus === 'pending' && <p className="mt-1 text-[10px] text-white/60">En attente de validation</p>}</div>)}
+              {chatMessages.map((message) => <div key={message.id} className={`max-w-[85%] rounded-[1.25rem] px-4 py-3 text-sm leading-6 ${message.senderRole === 'guest' ? 'ml-auto bg-[#102a3d] text-white' : 'bg-white text-[#31434c] shadow-sm'}`}><p>{message.content}</p></div>)}
             </div>
             <div className="border-t border-[#142c3f]/8 bg-white p-4"><div className="flex gap-2 rounded-[1.35rem] border border-[#dcd6cf] bg-[#fcfaf8] p-2"><textarea value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} maxLength={1000} rows={2} placeholder="Écrivez votre message…" className="min-h-12 flex-1 resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-[#98a0a2]" /><button type="button" onClick={sendMessage} disabled={sendingMessage || !chatDraft.trim() || !guestId} className="flex h-11 w-11 shrink-0 items-center justify-center self-end rounded-xl bg-[#d9694d] text-white disabled:opacity-40"><Send size={17} /></button></div>{chatError && <p role="alert" className="mt-2 text-xs text-[#b8453c]">{chatError}</p>}</div>
           </div>
