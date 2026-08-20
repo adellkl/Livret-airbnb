@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Camera, Crown, LockKeyhole, Mail, Save, Settings2, Smartphone } from 'lucide-react';
 import { onAuthStateChanged, sendPasswordResetEmail } from 'firebase/auth';
-import { collection, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import OwnerPageShell from '@/components/owner/OwnerPageShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -102,16 +102,21 @@ export default function SettingsPage() {
       const avatarRef = ref(firebaseStorage, `properties/${user.uid}/profile/${crypto.randomUUID()}-${safeFileName}`);
       await uploadBytes(avatarRef, file, { contentType: file.type });
       const nextAvatarUrl = await getDownloadURL(avatarRef);
-      const properties = await getDocs(query(collection(firestore, 'properties'), where('ownerId', '==', user.uid)));
-      const batch = writeBatch(firestore);
-      batch.update(doc(firestore, 'profiles', user.uid), { avatarUrl: nextAvatarUrl, updatedAt: serverTimestamp() });
-      properties.docs.forEach((propertyDocument) => {
-        batch.update(propertyDocument.ref, { hostAvatarUrl: nextAvatarUrl, updatedAt: serverTimestamp() });
-        batch.update(doc(firestore, 'public_guides', propertyDocument.id), { hostAvatarUrl: nextAvatarUrl, updatedAt: serverTimestamp() });
-      });
-      await batch.commit();
+      await updateDoc(doc(firestore, 'profiles', user.uid), { avatarUrl: nextAvatarUrl, updatedAt: serverTimestamp() });
       setAvatarUrl(nextAvatarUrl);
-      setMessage('Votre photo est enregistrée et affichée sur vos guides publiés.');
+      setMessage('Votre photo est enregistrée. Synchronisation de vos guides…');
+
+      const properties = await getDocs(query(collection(firestore, 'properties'), where('ownerId', '==', user.uid)));
+      const synchronizations = await Promise.allSettled(properties.docs.map(async (propertyDocument) => {
+        await updateDoc(propertyDocument.ref, { hostAvatarUrl: nextAvatarUrl, updatedAt: serverTimestamp() });
+        const guideRef = doc(firestore, 'public_guides', propertyDocument.id);
+        const guide = await getDoc(guideRef);
+        if (guide.exists()) await updateDoc(guideRef, { hostAvatarUrl: nextAvatarUrl, updatedAt: serverTimestamp() });
+      }));
+      const failedSynchronizations = synchronizations.filter((result) => result.status === 'rejected').length;
+      setMessage(failedSynchronizations
+        ? 'Votre photo est enregistrée. Elle sera ajoutée aux anciens guides lors de leur prochaine mise à jour.'
+        : 'Votre photo est enregistrée et affichée sur vos guides publiés.');
     } catch {
       setError('Impossible d’importer votre photo. Vérifiez votre connexion puis réessayez.');
     } finally {
