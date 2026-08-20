@@ -3,7 +3,7 @@
 import { type FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, Mail, Shield, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, LayoutDashboard, Mail, Shield } from 'lucide-react';
 import { ROUTES } from '@/config/routes';
 import { firebaseAuth, firebaseAuthReady, firestore } from '@/lib/firebase/client';
 import { doc, getDoc } from 'firebase/firestore';
@@ -74,7 +74,7 @@ export default function LoginPage() {
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <div className="mb-3 flex w-fit items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#d96c4a]">
-              <Sparkles className="h-3.5 w-3.5" /> Votre espace hôte
+              <LayoutDashboard className="h-3.5 w-3.5" /> Votre espace hôte
             </div>
             <h2 className="font-serif text-[clamp(2.25rem,7vw,3.15rem)] leading-none tracking-[-0.04em] text-[#1f2925]">Bon retour.</h2>
             <p className="mt-2 text-sm text-[#737b77]">Retrouvez vos livrets en quelques secondes.</p>

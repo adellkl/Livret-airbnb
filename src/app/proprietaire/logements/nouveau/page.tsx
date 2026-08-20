@@ -30,7 +30,6 @@ import {
   Palette,
   Plus,
   Save,
-  Sparkles,
   Trash2,
   Upload,
   Utensils,
@@ -86,7 +85,7 @@ const steps = [
     id: 8,
     label: 'Publication',
     description: 'Vérification et mise en ligne',
-    icon: Sparkles,
+    icon: Check,
   },
 ];
 
@@ -910,7 +909,7 @@ export default function NewPropertyPage() {
                   </FormSection>
 
                   <FormSection
-                    icon={Sparkles}
+                    icon={BookOpen}
                     title="Message de bienvenue"
                     description="Une courte présentation donne immédiatement le ton du séjour."
                   >
@@ -1136,7 +1135,7 @@ export default function NewPropertyPage() {
                     </div>
                   </FormSection>
 
-                  <FormSection icon={Sparkles} title="Expérience voyageur" description="Choisissez l’ambiance et les informations visibles dans le guide public.">
+                  <FormSection icon={Palette} title="Expérience voyageur" description="Choisissez l’ambiance et les informations visibles dans le guide public.">
                     <div className="space-y-5">
                       <div className="grid gap-5 sm:grid-cols-2">
                         <Field label="Sous-titre d’accueil"><Input value={property.welcomeSubtitle} onChange={(event) => updateProperty('welcomeSubtitle', event.target.value)} placeholder="Votre guide privé pour un séjour serein" className={fieldClass} /></Field>

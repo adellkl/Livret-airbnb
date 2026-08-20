@@ -27,7 +27,6 @@ import {
   MapPin,
   Plus,
   Search,
-  Sparkles,
   Users,
   X,
 } from 'lucide-react';
@@ -273,7 +272,7 @@ export default function PropertiesPage() {
           <section className="mt-8 grid gap-5 lg:grid-cols-2">
             <div className="rounded-[1.6rem] border border-[#e4ddd6] bg-white p-6">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f8e7df] text-[#d85b24]">
-                <Sparkles size={19} />
+                <BookOpen size={19} />
               </span>
               <h3 className="mt-4 text-lg font-semibold">
                 Commencez par l’essentiel

@@ -23,8 +23,7 @@ import {
   FileText,
   Share2,
   Users,
-  ArrowRight,
-  Sparkles
+  ArrowRight
 } from 'lucide-react';
 
 export default function OwnerDashboard() {
@@ -163,7 +162,7 @@ export default function OwnerDashboard() {
             <div className="absolute bottom-0 right-1/3 h-32 w-32 rounded-full bg-[#8eb8aa]/20 blur-2xl" />
             <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-2xl">
-                <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.18em] text-[#f3a181]"><Sparkles size={13} /> Votre espace hôte</p>
+                <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.18em] text-[#f3a181]"><Home size={13} /> Votre espace hôte</p>
                 <h2 className="mt-3 text-3xl font-semibold tracking-[-.05em] sm:text-4xl">{properties.length ? 'Votre accueil prend vie.' : 'Prêt à créer une belle arrivée ?'}</h2>
                 <p className="mt-3 max-w-xl text-sm leading-6 text-white/65">{properties.length ? 'Gardez un œil sur vos livrets et partagez des informations utiles à chaque voyageur.' : 'Commencez par votre premier logement : son guide d’accueil sera prêt en quelques minutes.'}</p>
               </div>

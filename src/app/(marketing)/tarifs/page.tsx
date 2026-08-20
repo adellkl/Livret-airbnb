@@ -14,7 +14,6 @@ import {
   Home,
   LockKeyhole,
   ShieldCheck,
-  Sparkles,
   X,
   Zap,
 } from 'lucide-react';
@@ -155,7 +154,7 @@ export default function PricingPage() {
         <div className="relative mx-auto max-w-[1240px]">
           <div className="mx-auto max-w-4xl text-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-[#1f2925]/9 bg-white/75 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#6d7872] shadow-sm backdrop-blur">
-              <Sparkles className="h-3.5 w-3.5 text-[#d96c4a]" />
+              <Clock3 className="h-3.5 w-3.5 text-[#d96c4a]" />
               14 jours offerts · Sans carte bancaire
             </div>
             <h1 className="type-section mt-7 text-balance font-serif leading-[1.03] tracking-[-0.04em] text-[#1f2925] sm:text-[4.4rem]">
@@ -170,34 +169,33 @@ export default function PricingPage() {
             </p>
 
             <div className="mt-9 flex justify-center">
-              <div className="relative pt-7">
-                <span className="absolute right-1 top-0 rounded-full bg-[#d96c4a] px-3 py-1.5 text-[8px] font-bold uppercase tracking-[0.1em] text-white shadow-[0_5px_14px_rgba(217,108,74,.28)]">
-                  2 mois offerts
-                </span>
+              <div>
               <div className="inline-flex rounded-full border border-[#1f2925]/9 bg-white p-1.5 shadow-[0_10px_35px_rgba(31,41,37,.08)]">
                 <button
                   type="button"
                   onClick={() => setIsAnnual(false)}
                   aria-pressed={!isAnnual}
-                  className={`relative z-10 min-w-28 rounded-full px-5 py-3 text-sm font-bold transition ${
+                  className={`relative z-10 flex min-w-28 flex-col items-center justify-center rounded-full px-5 py-2 text-sm font-bold transition ${
                     !isAnnual
                       ? 'bg-[#1f2925] text-white shadow-sm'
                       : 'text-[#707a74]'
                   }`}
                 >
-                  Mensuel
+                  <span className="leading-5">Mensuel</span>
+                  <span className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.08em] opacity-0">Avantage annuel</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsAnnual(true)}
                   aria-pressed={isAnnual}
-                  className={`relative z-10 min-w-28 rounded-full px-5 py-3 text-sm font-bold transition ${
+                  className={`relative z-10 flex min-w-32 flex-col items-center justify-center rounded-full px-5 py-2 text-sm font-bold transition ${
                     isAnnual
                       ? 'bg-[#1f2925] text-white shadow-sm'
                       : 'text-[#707a74]'
                   }`}
                 >
-                  Annuel
+                  <span className="leading-5">Annuel</span>
+                  <span className={`mt-0.5 rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.08em] ${isAnnual ? 'bg-[#d96c4a] text-white' : 'bg-[#f5e4db] text-[#c85f40]'}`}>2 mois offerts</span>
                 </button>
               </div>
               </div>

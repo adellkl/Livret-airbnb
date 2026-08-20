@@ -1,8 +1,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import {
-  ArrowRight, BarChart3, Check, ChevronRight, Clock3, Globe2, KeyRound,
-  MapPin, MessageCircleMore, QrCode, ShieldCheck, Sparkles, Star,
+  ArrowRight, BarChart3, BookOpen, Check, ChevronRight, Clock3, Globe2, KeyRound,
+  MapPin, MessageCircleMore, QrCode, ShieldCheck, Star,
   UtensilsCrossed, Wifi,
 } from 'lucide-react';
 import { ROUTES } from '@/config/routes';
@@ -100,7 +100,7 @@ export default function HomePage() {
         <div className="mx-auto grid min-h-[720px] max-w-[1440px] items-center gap-12 px-5 pb-20 pt-14 sm:px-8 lg:grid-cols-[.88fr_1.12fr] lg:px-12 lg:pb-24 lg:pt-16 xl:px-20">
           <div className="relative z-10 max-w-[650px]">
             <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#1f2925]/10 bg-white/70 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-[#516358]">
-              <Sparkles className="h-3.5 w-3.5 text-[#d96c4a]" /> L’attention qui change tout
+              <BookOpen className="h-3.5 w-3.5 text-[#d96c4a]" /> L’attention qui change tout
             </div>
             <h1 className="type-hero max-w-[720px] text-balance font-serif leading-[.94] tracking-[-0.045em] text-[#1f2925]">
               Un accueil mémorable, <span className="italic text-[#d96c4a]">avant même</span> l’arrivée.

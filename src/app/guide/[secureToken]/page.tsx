@@ -22,7 +22,6 @@ import {
   Play,
   ShieldCheck,
   Smartphone,
-  Sparkles,
   Star,
   Thermometer,
   Send,
@@ -123,7 +122,7 @@ const fallbackEquipmentCards = [
   {
     title: 'Lave-linge',
     subtitle: 'Programme rapide',
-    icon: Sparkles,
+    icon: Wind,
     description:
       'Le lave-linge est installé dans le placard de la salle de bain. Une dose de lessive est à votre disposition.',
     steps: ['Chargez le linge', 'Ajoutez une dose', 'Choisissez le programme 30 min'],
@@ -1328,7 +1327,7 @@ export default function PublicBookletPage() {
           <section className="px-5 py-8">
             <div className="rounded-[2rem] bg-[#f3eee8] p-7 text-center">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#d9694d] shadow-sm">
-                <Sparkles size={21} />
+                <MessageCircle size={21} />
               </div>
               <h2 className="mt-4 text-2xl font-semibold">Vous aimez votre séjour ?</h2>
               <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-[#6f7c84]">

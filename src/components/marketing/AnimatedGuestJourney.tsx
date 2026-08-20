@@ -26,7 +26,6 @@ import {
   MonitorCog,
   Send,
   ShieldCheck,
-  Sparkles,
   Star,
   Thermometer,
   Users,
@@ -896,7 +895,7 @@ export default function AnimatedGuestJourney() {
       <div className="mx-auto max-w-[1280px]">
         <div className="mx-auto max-w-4xl text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#1f2925]/9 bg-[#f8f3ec] px-4 py-2 text-[10px] font-bold uppercase tracking-[0.17em] text-[#6e7c73]">
-            <Sparkles className="h-3.5 w-3.5 text-[#d96c4a]" />
+            <BookOpen className="h-3.5 w-3.5 text-[#d96c4a]" />
             Démonstration voyageur
           </div>
           <h2

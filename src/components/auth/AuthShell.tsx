@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { Check, Sparkles } from 'lucide-react';
+import { Check, HeartHandshake } from 'lucide-react';
 import { ROUTES } from '@/config/routes';
 
 interface AuthShellProps {
@@ -46,7 +46,7 @@ export default function AuthShell({ children, mode }: AuthShellProps) {
 
             <div className="max-w-[590px] text-white">
               <div className="mb-6 flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.19em] text-white/80 backdrop-blur-md">
-                <Sparkles className="h-3.5 w-3.5 text-[#efad82]" />
+                <HeartHandshake className="h-3.5 w-3.5 text-[#efad82]" />
                 Pensé pour les hôtes attentionnés
               </div>
               <h1 className="text-balance font-serif text-[clamp(3.2rem,5.1vw,5.4rem)] leading-[.94] tracking-[-0.045em]">

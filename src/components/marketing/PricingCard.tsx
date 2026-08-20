@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, Check, Sparkles } from 'lucide-react';
+import { ArrowRight, Check, type LucideIcon } from 'lucide-react';
 
 interface PricingCardProps {
   title: string;
@@ -13,7 +13,7 @@ interface PricingCardProps {
   popular?: boolean;
   ctaText: string;
   ctaHref: string;
-  icon: typeof Sparkles;
+  icon: LucideIcon;
 }
 
 export default function PricingCard({

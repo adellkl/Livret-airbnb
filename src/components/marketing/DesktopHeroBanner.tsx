@@ -3,10 +3,10 @@ import Link from 'next/link';
 import {
   ArrowRight,
   Check,
+  HeartHandshake,
   KeyRound,
   MapPin,
   MessageCircleMore,
-  Sparkles,
   Star,
   UtensilsCrossed,
   Wifi,
@@ -91,7 +91,7 @@ export default function DesktopHeroBanner() {
       <div className="mx-auto grid min-h-[760px] max-w-[1440px] grid-cols-[.9fr_1.1fr] items-center gap-14 px-12 pb-20 pt-14 xl:px-20">
         <div className="relative z-10 max-w-[650px]">
           <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#1f2925]/10 bg-white/65 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-[#516358]">
-            <Sparkles className="h-3.5 w-3.5 text-[#d96c4a]" />
+            <HeartHandshake className="h-3.5 w-3.5 text-[#d96c4a]" />
             L’attention qui change tout
           </div>
 
