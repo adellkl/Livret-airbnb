@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
-import { BookOpen, CheckCircle2, ChevronRight, FilePenLine, Plus, Search } from 'lucide-react';
+import { BookOpen, CheckCircle2, ChevronRight, FilePenLine, ImageIcon, MapPin, Plus, Search, Users } from 'lucide-react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import OwnerPageShell from '@/components/owner/OwnerPageShell';
@@ -105,17 +106,46 @@ export default function BookletsPage() {
 
 function BookletCard({ property }: { property: OwnerProperty }) {
   const published = property.status === 'published';
+
   return (
-    <Link href={ROUTES.OWNER_BOOKLET_EDITOR(property.id)} className="group rounded-[1.6rem] border border-[#e4ddd6] bg-white p-6 transition hover:-translate-y-0.5 hover:border-[#df7045]/45 hover:shadow-[0_16px_32px_rgba(31,41,37,.08)]">
-      <div className="flex items-start justify-between gap-4">
-        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f8e7df] text-[#d85b24]"><FilePenLine size={20} /></span>
-        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${published ? 'bg-[#eaf5f1] text-[#286454]' : 'bg-[#f3eee8] text-[#77736f]'}`}>{published ? 'Publié' : 'Brouillon'}</span>
+    <Link href={ROUTES.OWNER_BOOKLET_EDITOR(property.id)} className="group overflow-hidden rounded-[1.7rem] border border-[#e4ddd6] bg-white transition hover:-translate-y-1 hover:border-[#df7045]/45 hover:shadow-[0_22px_42px_rgba(31,41,37,.12)]">
+      <div className="relative aspect-[16/9] overflow-hidden bg-[#203039]">
+        {property.coverImage ? (
+          <Image
+            src={property.coverImage}
+            alt={`Photo de ${property.name || 'votre logement'}`}
+            fill
+            unoptimized
+            sizes="(min-width: 1280px) 30vw, (min-width: 768px) 45vw, 100vw"
+            className="object-cover transition duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center bg-[radial-gradient(circle_at_75%_20%,rgba(223,112,69,.42),transparent_28%),linear-gradient(135deg,#17232c,#30434a)] text-white/70">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/10"><ImageIcon size={22} /></span>
+            <span className="mt-3 text-xs font-medium">Photo à ajouter</span>
+          </div>
+        )}
+        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-[#142127]/80 to-transparent" />
+        <div className="absolute inset-x-4 top-4 flex items-center justify-between gap-3">
+          <span className="rounded-full bg-white/95 px-3 py-1.5 text-[11px] font-bold text-[#273238] shadow-sm backdrop-blur">{property.type || 'Logement'}</span>
+          <span className={`rounded-full px-3 py-1.5 text-[11px] font-bold shadow-sm ${published ? 'bg-[#ddf1eb] text-[#286454]' : 'bg-white/95 text-[#6d6964]'}`}>{published ? 'Publié' : 'Brouillon'}</span>
+        </div>
+        <div className="absolute inset-x-5 bottom-4 text-white">
+          <p className="flex items-center gap-1.5 text-xs font-medium text-white/80"><MapPin size={14} />{property.city || 'Adresse à compléter'}</p>
+          <h3 className="mt-1 truncate text-xl font-semibold tracking-[-0.03em]">{property.name || 'Sans nom'}</h3>
+        </div>
       </div>
-      <h3 className="mt-5 text-lg font-semibold text-[#24292c]">{property.name || 'Sans nom'}</h3>
-      <p className="mt-1 text-sm text-[#77736f]">{property.city || 'Adresse à compléter'}</p>
-      <div className="mt-6 flex items-center justify-between border-t border-[#eee8e2] pt-4 text-sm font-semibold text-[#303634]">
-        <span className="flex items-center gap-2">{published && <CheckCircle2 size={16} className="text-[#397d6d]" />}{published ? 'Gérer le livret' : 'Continuer la rédaction'}</span>
-        <ChevronRight size={18} className="text-[#d85b24] transition-transform group-hover:translate-x-1" />
+
+      <div className="p-5">
+        <div className="flex min-h-6 items-center gap-4 text-xs font-medium text-[#77736f]">
+          {property.capacity > 0 && <span className="flex items-center gap-1.5"><Users size={15} className="text-[#d85b24]" />{property.capacity} {property.capacity > 1 ? 'voyageurs' : 'voyageur'}</span>}
+          {property.bedrooms > 0 && <span>{property.bedrooms} {property.bedrooms > 1 ? 'chambres' : 'chambre'}</span>}
+          {!property.capacity && !property.bedrooms && <span>Informations à compléter</span>}
+        </div>
+        <div className="mt-5 flex items-center justify-between border-t border-[#eee8e2] pt-4 text-sm font-semibold text-[#303634]">
+          <span className="flex items-center gap-2">{published ? <CheckCircle2 size={16} className="text-[#397d6d]" /> : <FilePenLine size={16} className="text-[#d85b24]" />}{published ? 'Gérer le livret' : 'Continuer la rédaction'}</span>
+          <ChevronRight size={18} className="text-[#d85b24] transition-transform group-hover:translate-x-1" />
+        </div>
       </div>
     </Link>
   );
