@@ -1,280 +1,118 @@
 'use client';
 
-import { useState } from 'react';
-import OwnerSidebar from '@/components/layout/OwnerSidebar';
-import DashboardHeader from '@/components/layout/DashboardHeader';
-import MobileNavigation from '@/components/layout/MobileNavigation';
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { ArrowLeft, Check, ChevronDown, ImageIcon, Plus, Save, Trash2 } from 'lucide-react';
+import OwnerPageShell from '@/components/owner/OwnerPageShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { 
-  GripVertical,
-  Plus,
-  Eye,
-  Save,
-  Send,
-  MoreVertical,
-  Smartphone,
-  Monitor,
-  Image,
-  Type,
-  Layout
-} from 'lucide-react';
+import { ROUTES } from '@/config/routes';
+import { firebaseAuth, firestore } from '@/lib/firebase/client';
 
-export default function BookletEditorPage() {
-  const [previewMode, setPreviewMode] = useState<'mobile' | 'desktop'>('mobile');
-  const [selectedSection, setSelectedSection] = useState(0);
+type FormValues = Record<string, string>;
+type NearbyPlace = { name: string; category: string; address: string; note: string };
+type GalleryImage = { url: string; caption: string };
 
-  const sections = [
-    { id: 1, icon: '👋', title: 'Bienvenue', subtitle: 'Message de bienvenue', visible: true },
-    { id: 2, icon: '🗝️', title: 'Arrivée et accès', subtitle: 'Instructions pour arriver', visible: true },
-    { id: 3, icon: '📶', title: 'Wi-Fi et équipements', subtitle: 'Codes et équipements', visible: true },
-    { id: 4, icon: '📋', title: 'Règles de la maison', subtitle: 'Règlement intérieur', visible: true },
-    { id: 5, icon: '❓', title: 'FAQ', subtitle: 'Questions fréquentes', visible: true },
-    { id: 6, icon: '🍽️', title: 'Restaurants', subtitle: 'Recommandations', visible: true },
-    { id: 7, icon: '🎯', title: 'Activités', subtitle: 'À faire aux alentours', visible: true },
-    { id: 8, icon: '📞', title: 'Contact', subtitle: 'Informations de contact', visible: true }
-  ];
+function asText(value: unknown) { return typeof value === 'string' ? value : ''; }
 
-  const currentSection = sections[selectedSection];
+export default function SimpleBookletEditorPage() {
+  const params = useParams<{ bookletId: string }>();
+  const router = useRouter();
+  const [name, setName] = useState('');
+  const [values, setValues] = useState<FormValues>({});
+  const [houseRules, setHouseRules] = useState<string[]>([]);
+  const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
+  const [gallery, setGallery] = useState<GalleryImage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
 
-  return (
-    <div className="min-h-screen bg-background">
-      <OwnerSidebar />
-      <MobileNavigation type="owner" />
-      
-      <div className="lg:ml-[250px]">
-        <div className="border-b border-border bg-surface px-4 py-3 sm:px-8 sm:py-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2 sm:gap-4">
-              <Button variant="ghost" size="sm">
-                ← Retour
-              </Button>
-              <div className="min-w-0">
-                <h1 className="truncate text-base font-semibold text-foreground sm:text-lg">Éditeur de livret</h1>
-                <p className="hidden truncate text-sm text-muted-foreground min-[420px]:block">L'Atelier des Batignolles</p>
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-1 sm:gap-3">
-              <Button variant="outline" size="sm" className="hidden sm:flex">
-                <Eye size={16} className="mr-2" />
-                Aperçu
-              </Button>
-              <Button variant="outline" size="sm" aria-label="Enregistrer">
-                <Save size={16} className="mr-2" />
-                <span className="hidden md:inline">Enregistrer</span>
-              </Button>
-              <Button size="sm" className="bg-primary text-white hover:bg-primary-hover">
-                <Send size={16} className="mr-2" />
-                <span className="hidden min-[420px]:inline">Publier</span>
-              </Button>
-              <Button variant="ghost" size="sm" className="w-8 h-8 p-0">
-                <MoreVertical size={18} />
-              </Button>
-            </div>
-          </div>
-        </div>
+  useEffect(() => {
+    let active = true;
+    const stopAuth = onAuthStateChanged(firebaseAuth, async (user) => {
+      if (!user) { router.replace(ROUTES.LOGIN); return; }
+      const snapshot = await getDoc(doc(firestore, 'properties', params.bookletId));
+      if (!active) return;
+      if (!snapshot.exists() || snapshot.data().ownerId !== user.uid) { router.replace(ROUTES.OWNER_PROPERTIES); return; }
+      const data = snapshot.data();
+      setName(asText(data.name) || 'Votre livret');
+      setValues({
+        welcomeTitle: asText(data.welcomeTitle) || 'Bienvenue chez vous',
+        welcomeSubtitle: asText(data.welcomeSubtitle) || 'Votre guide privé pour un séjour serein',
+        hostMessage: asText(data.hostMessage),
+        checkIn: asText(data.checkIn),
+        checkOut: asText(data.checkOut),
+        arrivalInstructions: asText(data.arrivalInstructions),
+        accessCode: asText(data.accessCode),
+        parkingInstructions: asText(data.parkingInstructions),
+        wifiName: asText(data.wifiName),
+        wifiPassword: asText(data.wifiPassword),
+        hostName: asText(data.hostName),
+        hostPhone: asText(data.hostPhone),
+        hostEmail: asText(data.hostEmail),
+        emergencyContact: asText(data.emergencyContact),
+      });
+      setHouseRules(Array.isArray(data.houseRules) ? data.houseRules.map(String) : []);
+      setNearbyPlaces(Array.isArray(data.nearbyPlaces) ? data.nearbyPlaces.map((place) => {
+        const item = place && typeof place === 'object' ? place as Record<string, unknown> : {};
+        return { name: asText(item.name), category: asText(item.category), address: asText(item.address), note: asText(item.note) };
+      }) : []);
+      setGallery(Array.isArray(data.gallery) ? data.gallery.map((image) => {
+        const item = image && typeof image === 'object' ? image as Record<string, unknown> : {};
+        return { url: asText(item.url), caption: asText(item.caption) };
+      }) : []);
+      setLoading(false);
+    });
+    return () => { active = false; stopAuth(); };
+  }, [params.bookletId, router]);
 
-        <div className="flex flex-col pb-24 lg:h-[calc(100vh-73px)] lg:flex-row lg:pb-0">
-          <div className="w-full border-b border-border bg-surface p-4 lg:w-80 lg:overflow-y-auto lg:border-b-0 lg:border-r">
-            <Button className="w-full mb-6 bg-primary hover:bg-primary-hover text-white">
-              <Plus size={18} className="mr-2" />
-              Ajouter une section
-            </Button>
+  const save = async () => {
+    setSaving(true); setMessage('');
+    try {
+      const changes = {
+        ...values,
+        houseRules: houseRules.map((rule) => rule.trim()).filter(Boolean),
+        nearbyPlaces: nearbyPlaces.filter((place) => place.name.trim()).map((place) => ({ name: place.name.trim(), category: place.category.trim(), address: place.address.trim(), note: place.note.trim() })),
+        gallery: gallery.filter((image) => image.url.trim()).map((image) => ({ url: image.url.trim(), caption: image.caption.trim() })),
+        updatedAt: serverTimestamp(),
+      };
+      const batch = writeBatch(firestore);
+      batch.update(doc(firestore, 'properties', params.bookletId), changes);
+      batch.set(doc(firestore, 'public_guides', params.bookletId), { ...changes, propertyId: params.bookletId }, { merge: true });
+      await batch.commit();
+      setMessage('Les informations du livret sont sauvegardées.');
+    } catch { setMessage('Impossible de sauvegarder les informations.'); } finally { setSaving(false); }
+  };
+  const update = (key: string, value: string) => setValues((current) => ({ ...current, [key]: value }));
 
-            <div className="flex gap-2 overflow-x-auto pb-2 lg:block lg:space-y-2 lg:overflow-visible lg:pb-0">
-              {sections.map((section, index) => (
-                <div
-                  key={section.id}
-                  onClick={() => setSelectedSection(index)}
-                  className={`w-64 shrink-0 cursor-pointer rounded-lg p-3 transition-colors lg:w-auto lg:p-4 ${
-                    selectedSection === index
-                      ? 'bg-primary-light border-2 border-primary'
-                      : 'bg-surface-soft hover:bg-surface-soft/80 border-2 border-transparent'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <GripVertical size={18} className="text-muted-foreground mt-1 cursor-grab" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-lg">{section.icon}</span>
-                        <p className="text-sm font-medium text-foreground truncate">{section.title}</p>
-                      </div>
-                      <p className="text-xs text-muted-foreground truncate">{section.subtitle}</p>
-                    </div>
-                    <Switch checked={section.visible} className="scale-75" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+  if (loading) return <div className="min-h-screen bg-[#f6f3ef]" />;
 
-          <div className="flex min-h-[520px] flex-1 items-center justify-center overflow-auto bg-surface-soft p-4 sm:p-8">
-            <div className={`${previewMode === 'mobile' ? 'max-w-sm' : 'max-w-2xl'} w-full`}>
-              <div className="bg-white rounded-2xl shadow-premium-lg overflow-hidden">
-                <div className="bg-primary p-4 text-white">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                      <span className="font-bold">L</span>
-                    </div>
-                    <div>
-                      <p className="font-semibold">L'Atelier des Batignolles</p>
-                      <p className="text-xs text-white/80">Livret d'accueil</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-6 space-y-6">
-                  <div className="text-center">
-                    <span className="text-4xl mb-4 block">{currentSection.icon}</span>
-                    <h3 className="text-xl font-bold text-foreground mb-2">{currentSection.title}</h3>
-                    <p className="text-sm text-muted-foreground">{currentSection.subtitle}</p>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="h-3 bg-surface-soft rounded-full w-3/4"></div>
-                    <div className="h-3 bg-surface-soft rounded-full w-1/2"></div>
-                    <div className="h-3 bg-surface-soft rounded-full w-2/3"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="w-full border-t border-border bg-surface p-4 sm:p-6 lg:w-96 lg:overflow-y-auto lg:border-l lg:border-t-0">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-foreground">Éditer la section</h3>
-              <div className="flex items-center gap-2 bg-surface-soft rounded-lg p-1">
-                <button
-                  onClick={() => setPreviewMode('mobile')}
-                  className={`p-2 rounded-lg ${previewMode === 'mobile' ? 'bg-white shadow-sm' : ''}`}
-                >
-                  <Smartphone size={18} />
-                </button>
-                <button
-                  onClick={() => setPreviewMode('desktop')}
-                  className={`p-2 rounded-lg ${previewMode === 'desktop' ? 'bg-white shadow-sm' : ''}`}
-                >
-                  <Monitor size={18} />
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="sectionTitle">Titre</Label>
-                <Input
-                  id="sectionTitle"
-                  defaultValue={currentSection.title}
-                  className="h-12"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="sectionSubtitle">Sous-titre</Label>
-                <Input
-                  id="sectionSubtitle"
-                  defaultValue={currentSection.subtitle}
-                  className="h-12"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="sectionDescription">Description</Label>
-                <Textarea
-                  id="sectionDescription"
-                  placeholder="Ajoutez une description pour cette section..."
-                  className="min-h-32 resize-none"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Image de couverture</Label>
-                <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
-                  <Image size={32} className="text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">Glissez une image ou cliquez pour sélectionner</p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Boutons rapides</Label>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" className="text-xs">
-                    Appeler
-                  </Button>
-                  <Button variant="outline" size="sm" className="text-xs">
-                    WhatsApp
-                  </Button>
-                  <Button variant="outline" size="sm" className="text-xs">
-                    Maps
-                  </Button>
-                  <Button variant="outline" size="sm" className="text-xs">
-                    Copier
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Visibilité</Label>
-                <div className="flex items-center justify-between p-4 bg-surface-soft rounded-lg">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Visible par les voyageurs</p>
-                    <p className="text-xs text-muted-foreground">Cette section apparaîtra dans le livret public</p>
-                  </div>
-                  <Switch checked={currentSection.visible} />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Icône</Label>
-                <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
-                  {['👋', '🗝️', '📶', '📋', '❓', '🍽️', '🎯', '📞'].map((emoji) => (
-                    <button
-                      key={emoji}
-                      className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl ${
-                        currentSection.icon === emoji ? 'bg-primary-light border-2 border-primary' : 'bg-surface-soft'
-                      }`}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Style de section</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button className="p-4 bg-surface-soft rounded-lg border-2 border-primary text-center">
-                    <Layout size={20} className="mx-auto mb-2 text-primary" />
-                    <p className="text-xs font-medium">Par défaut</p>
-                  </button>
-                  <button className="p-4 bg-surface-soft rounded-lg border-2 border-transparent hover:border-border text-center">
-                    <Type size={20} className="mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-xs font-medium">Carte</p>
-                  </button>
-                  <button className="p-4 bg-surface-soft rounded-lg border-2 border-transparent hover:border-border text-center">
-                    <Image size={20} className="mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-xs font-medium">Overlay</p>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-primary p-3 lg:left-[250px] lg:p-4">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-            <div className="hidden sm:block">
-              <p className="text-white font-semibold">Prêt à partager votre livret ?</p>
-              <p className="text-white/80 text-sm">Toutes les modifications sont sauvegardées automatiquement</p>
-            </div>
-            <Button className="bg-white text-primary hover:bg-surface">
-              <Send size={18} className="mr-2" />
-              Publier le livret
-            </Button>
-          </div>
-        </div>
+  return <OwnerPageShell title={'Modifier le livret · ' + name} subtitle="Retrouvez et modifiez les informations déjà présentes dans votre logement.">
+    <div className="mx-auto max-w-3xl">
+      <div className="mb-6 flex items-center justify-between gap-4"><Button variant="ghost" onClick={() => router.push(ROUTES.OWNER_BOOKLETS)}><ArrowLeft className="mr-2 h-4 w-4" />Retour aux livrets</Button><Button onClick={() => void save()} disabled={saving} className="bg-[#d85b24] text-white hover:bg-[#c84e1b]"><Save className="mr-2 h-4 w-4" />{saving ? 'Sauvegarde…' : 'Sauvegarder'}</Button></div>
+      <div className="space-y-4">
+        <EditorPanel title="Bienvenue" description="Les premiers mots que découvrent vos voyageurs." defaultOpen><FormField label="Titre d’accueil"><Input value={values.welcomeTitle ?? ''} onChange={(event) => update('welcomeTitle', event.target.value)} /></FormField><FormField label="Sous-titre"><Input value={values.welcomeSubtitle ?? ''} onChange={(event) => update('welcomeSubtitle', event.target.value)} /></FormField><FormField label="Message personnel"><Textarea value={values.hostMessage ?? ''} onChange={(event) => update('hostMessage', event.target.value)} /></FormField></EditorPanel>
+        <EditorPanel title="Arrivée et accès" description="Horaires, arrivée, accès et stationnement."><div className="grid gap-4 sm:grid-cols-2"><FormField label="Heure d’arrivée"><Input type="time" value={values.checkIn ?? ''} onChange={(event) => update('checkIn', event.target.value)} /></FormField><FormField label="Heure de départ"><Input type="time" value={values.checkOut ?? ''} onChange={(event) => update('checkOut', event.target.value)} /></FormField></div><FormField label="Instructions d’arrivée"><Textarea value={values.arrivalInstructions ?? ''} onChange={(event) => update('arrivalInstructions', event.target.value)} /></FormField><FormField label="Code d’accès / boîte à clés"><Input value={values.accessCode ?? ''} onChange={(event) => update('accessCode', event.target.value)} /></FormField><FormField label="Stationnement"><Textarea value={values.parkingInstructions ?? ''} onChange={(event) => update('parkingInstructions', event.target.value)} /></FormField></EditorPanel>
+        <EditorPanel title="Wi-Fi et équipements" description="Les identifiants pratiques du logement."><div className="grid gap-4 sm:grid-cols-2"><FormField label="Nom du réseau Wi-Fi"><Input value={values.wifiName ?? ''} onChange={(event) => update('wifiName', event.target.value)} /></FormField><FormField label="Mot de passe Wi-Fi"><Input value={values.wifiPassword ?? ''} onChange={(event) => update('wifiPassword', event.target.value)} /></FormField></div></EditorPanel>
+        <EditorPanel title="Règles de la maison" description="Une règle par champ, visible dans le guide."><div className="space-y-3">{houseRules.map((rule, index) => <div key={index} className="flex gap-2"><Input value={rule} onChange={(event) => setHouseRules((items) => items.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder="Ex. Logement non-fumeur" /><Button type="button" variant="outline" size="icon" onClick={() => setHouseRules((items) => items.filter((_, itemIndex) => itemIndex !== index))} aria-label="Supprimer cette règle"><Trash2 size={16} /></Button></div>)}<Button type="button" variant="outline" onClick={() => setHouseRules((items) => [...items, ''])}><Plus size={16} className="mr-2" />Ajouter une règle</Button></div></EditorPanel>
+        <EditorPanel title="Bonnes adresses" description="Ajoutez vos recommandations avec tous les détails utiles."><div className="space-y-4">{nearbyPlaces.map((place, index) => <div key={index} className="rounded-2xl border border-[#e8e0d8] bg-[#fcfbf9] p-4"><div className="mb-3 flex items-center justify-between"><p className="text-sm font-semibold">Adresse {index + 1}</p><Button type="button" variant="ghost" size="icon" onClick={() => setNearbyPlaces((items) => items.filter((_, itemIndex) => itemIndex !== index))} aria-label="Supprimer cette adresse"><Trash2 size={16} className="text-[#b8453c]" /></Button></div><div className="grid gap-3 sm:grid-cols-2"><FormField label="Nom"><Input value={place.name} onChange={(event) => setNearbyPlaces((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} /></FormField><FormField label="Catégorie"><Input value={place.category} onChange={(event) => setNearbyPlaces((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, category: event.target.value } : item))} placeholder="Restaurant, café…" /></FormField><FormField label="Adresse"><Input value={place.address} onChange={(event) => setNearbyPlaces((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, address: event.target.value } : item))} /></FormField><FormField label="Votre note"><Input value={place.note} onChange={(event) => setNearbyPlaces((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, note: event.target.value } : item))} placeholder="Pourquoi la recommander ?" /></FormField></div></div>)}<Button type="button" variant="outline" onClick={() => setNearbyPlaces((items) => [...items, { name: '', category: '', address: '', note: '' }])}><Plus size={16} className="mr-2" />Ajouter une adresse</Button></div></EditorPanel>
+        <EditorPanel title="Galerie photos" description="Ajoutez ou modifiez les images du guide."><div className="space-y-3">{gallery.map((image, index) => <div key={index} className="grid gap-3 rounded-2xl border border-[#e8e0d8] bg-[#fcfbf9] p-4 sm:grid-cols-[1fr_1fr_auto]"><FormField label="URL de l’image"><Input value={image.url} onChange={(event) => setGallery((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, url: event.target.value } : item))} placeholder="https://…" /></FormField><FormField label="Légende"><Input value={image.caption} onChange={(event) => setGallery((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, caption: event.target.value } : item))} /></FormField><Button type="button" variant="outline" size="icon" className="self-end" onClick={() => setGallery((items) => items.filter((_, itemIndex) => itemIndex !== index))} aria-label="Supprimer cette image"><Trash2 size={16} /></Button></div>)}<Button type="button" variant="outline" onClick={() => setGallery((items) => [...items, { url: '', caption: '' }])}><ImageIcon size={16} className="mr-2" />Ajouter une image</Button></div></EditorPanel>
+        <EditorPanel title="Contact" description="Les coordonnées à utiliser pendant le séjour."><div className="grid gap-4 sm:grid-cols-2"><FormField label="Nom de l’hôte"><Input value={values.hostName ?? ''} onChange={(event) => update('hostName', event.target.value)} /></FormField><FormField label="Téléphone"><Input value={values.hostPhone ?? ''} onChange={(event) => update('hostPhone', event.target.value)} /></FormField><FormField label="E-mail"><Input value={values.hostEmail ?? ''} onChange={(event) => update('hostEmail', event.target.value)} /></FormField><FormField label="Contact d’urgence"><Input value={values.emergencyContact ?? ''} onChange={(event) => update('emergencyContact', event.target.value)} /></FormField></div></EditorPanel>
       </div>
+      {message && <div role="status" className={'fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(31,41,37,.18)] ' + (message.startsWith('Les') ? 'bg-[#286454]' : 'bg-[#b8453c]')}>{message.startsWith('Les') && <Check className="h-4 w-4" />}{message}</div>}
     </div>
-  );
+  </OwnerPageShell>;
+}
+
+function EditorPanel({ title, description, defaultOpen = false, children }: { title: string; description: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return <section className="overflow-hidden rounded-[1.6rem] border border-[#e4ddd6] bg-white"><button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left"><div><h2 className="text-lg font-semibold text-[#24292c]">{title}</h2><p className="mt-1 text-sm text-[#77736f]">{description}</p></div><ChevronDown className={`h-5 w-5 shrink-0 text-[#77736f] transition-transform duration-300 ${open ? 'rotate-180' : ''}`} /></button><div className={`grid transition-[grid-template-rows] duration-300 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}><div className="overflow-hidden"><div className={`border-t border-[#eee8e2] p-6 space-y-5 transition-opacity duration-200 ${open ? 'opacity-100 delay-100' : 'opacity-0'}`}>{children}</div></div></div></section>;
+}
+
+function FormField({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="space-y-2"><Label>{label}</Label>{children}</div>;
 }

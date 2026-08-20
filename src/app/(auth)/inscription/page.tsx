@@ -12,7 +12,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { createClient } from '@/lib/supabase/client';
+import { createUserWithEmailAndPassword, deleteUser, updateProfile } from 'firebase/auth';
+import { firebaseAuth, firebaseAuthReady } from '@/lib/firebase/client';
+import { createOwnerProfile } from '@/lib/firebase/profile';
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton';
 
 const inputClass = 'auth-field h-12 rounded-xl border-[#1f2925]/10 bg-[#faf8f4] px-3.5 text-sm text-[#1f2925] shadow-none placeholder:text-[#9aa09c] focus-visible:border-[#d96c4a]/60 focus-visible:bg-white focus-visible:ring-[#d96c4a]/12';
@@ -71,35 +73,37 @@ export default function RegisterPage() {
 
     setIsSubmitting(true);
     setError('');
-    const supabase = createClient();
     const fullName = `${details.firstName.trim()} ${details.lastName.trim()}`.trim();
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email: details.email.trim().toLowerCase(),
-      password: details.password,
-      options: {
-        emailRedirectTo: `${window.location.origin}${ROUTES.LOGIN}`,
-        data: {
-          full_name: fullName,
-          organization_name: details.establishment.trim(),
-          activity_type: details.activityType,
-          accepted_terms: true,
-        },
-      },
-    });
-
-    if (signUpError) {
-      setError(signUpError.message);
+    try {
+      await firebaseAuthReady;
+      const credential = await createUserWithEmailAndPassword(
+        firebaseAuth,
+        details.email.trim().toLowerCase(),
+        details.password,
+      );
+      await updateProfile(credential.user, { displayName: fullName });
+      try {
+        await createOwnerProfile({
+          uid: credential.user.uid,
+          email: credential.user.email,
+          fullName,
+          organizationName: details.establishment.trim(),
+          activityType: details.activityType,
+        });
+      } catch {
+        await deleteUser(credential.user);
+        throw new Error('profile-creation-failed');
+      }
+      router.replace(ROUTES.OWNER_DASHBOARD);
+      router.refresh();
+    } catch (registrationError) {
+      const code = registrationError instanceof Error ? registrationError.message : '';
+      setError(code.includes('email-already-in-use')
+        ? 'Cette adresse e-mail est déjà utilisée.'
+        : 'Impossible de créer le compte. Vérifiez les informations puis réessayez.');
+    } finally {
       setIsSubmitting(false);
-      return;
     }
-
-    if (!data.session) {
-      router.replace(`${ROUTES.LOGIN}?confirmation=sent`);
-      return;
-    }
-
-    router.replace(ROUTES.OWNER_DASHBOARD);
-    router.refresh();
   };
 
   return (

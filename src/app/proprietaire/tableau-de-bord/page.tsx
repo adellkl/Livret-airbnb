@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 
 import OwnerSidebar from '@/components/layout/OwnerSidebar';
@@ -8,7 +8,9 @@ import DashboardHeader from '@/components/layout/DashboardHeader';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 import StatCard from '@/components/dashboard/StatCard';
 import { ROUTES } from '@/config/routes';
-import { createClient } from '@/lib/supabase/client';
+import { firebaseAuth, firestore } from '@/lib/firebase/client';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import {
   Home,
   BookOpen,
@@ -26,28 +28,47 @@ import {
 } from 'lucide-react';
 
 export default function OwnerDashboard() {
-  const [properties, setProperties] = useState<Array<{ id: string; name: string; city: string; status: string; public_token: string }>>([]);
-  const [events, setEvents] = useState<Array<{ property_id: string; event_type: string; occurred_at: string }>>([]);
+  const [properties, setProperties] = useState<Array<{ id: string; name: string; city: string; status: string; publicToken: string }>>([]);
+  const [events, setEvents] = useState<Array<{ propertyId: string; eventType: string; occurredAt: Date | null }>>([]);
+  const [period, setPeriod] = useState(30);
 
   useEffect(() => {
     let active = true;
-    const load = async () => {
-      const supabase = createClient();
-      const [{ data: propertyData }, { data: eventData }] = await Promise.all([
-        supabase.from('properties').select('id, name, city, status, public_token').order('updated_at', { ascending: false }),
-        supabase.from('guide_events').select('property_id, event_type, occurred_at').order('occurred_at', { ascending: false }).limit(20),
-      ]);
-      if (!active) return;
-      setProperties(propertyData ?? []);
-      setEvents(eventData ?? []);
-    };
-    void load();
-    return () => { active = false; };
+    let unsubscribeProperties: (() => void) | undefined;
+    let unsubscribeEvents: (() => void) | undefined;
+    const unsubscribeAuth = onAuthStateChanged(firebaseAuth, (user) => {
+      unsubscribeProperties?.();
+      unsubscribeEvents?.();
+      if (!user) {
+        if (active) { setProperties([]); setEvents([]); }
+        return;
+      }
+      unsubscribeProperties = onSnapshot(query(collection(firestore, 'properties'), where('ownerId', '==', user.uid)), (snapshot) => {
+        if (active) setProperties(snapshot.docs.map((item) => ({
+          id: item.id,
+          name: String(item.data().name ?? ''),
+          city: String(item.data().city ?? ''),
+          status: String(item.data().status ?? 'draft'),
+          publicToken: String(item.data().publicToken ?? item.id),
+        })));
+      });
+      unsubscribeEvents = onSnapshot(query(collection(firestore, 'guide_events'), where('ownerId', '==', user.uid)), (snapshot) => {
+        if (active) setEvents(snapshot.docs
+          .map((item) => ({
+            propertyId: String(item.data().propertyId ?? ''),
+            eventType: String(item.data().eventType ?? ''),
+            occurredAt: item.data().occurredAt?.toDate?.() ?? null,
+          }))
+          .sort((first, second) => (second.occurredAt?.getTime() ?? 0) - (first.occurredAt?.getTime() ?? 0)));
+      });
+    });
+    return () => { active = false; unsubscribeProperties?.(); unsubscribeEvents?.(); unsubscribeAuth(); };
   }, []);
 
   const publishedProperties = properties.filter((property) => property.status === 'published');
-  const viewEvents = events.filter((event) => event.event_type === 'view');
-  const scanEvents = events.filter((event) => event.event_type === 'qr_scan');
+  const periodEvents = useMemo(() => events.filter((event) => !event.occurredAt || event.occurredAt >= new Date(Date.now() - period * 86400000)), [events, period]);
+  const viewEvents = periodEvents.filter((event) => event.eventType === 'view');
+  const scanEvents = periodEvents.filter((event) => event.eventType === 'qr_scan');
 
   const stats = [
     {
@@ -88,20 +109,20 @@ export default function OwnerDashboard() {
   ];
 
   const recentActivities = events.slice(0, 5).map((event) => {
-    const property = properties.find((item) => item.id === event.property_id);
-    const isScan = event.event_type === 'qr_scan';
+    const property = properties.find((item) => item.id === event.propertyId);
+    const isScan = event.eventType === 'qr_scan';
     return {
       icon: isScan ? QrCode : Eye,
       title: `${isScan ? 'QR code scanné' : 'Livret consulté'}${property ? ` · ${property.name}` : ''}`,
-      time: new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(event.occurred_at)),
+      time: event.occurredAt ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(event.occurredAt) : 'À l’instant',
       color: isScan ? 'text-primary' : 'text-foreground',
     };
   });
 
   const propertyPerformance = properties.map((property) => ({
     ...property,
-    views: events.filter((event) => event.property_id === property.id && event.event_type === 'view').length,
-    scans: events.filter((event) => event.property_id === property.id && event.event_type === 'qr_scan').length,
+    views: events.filter((event) => event.propertyId === property.id && event.eventType === 'view').length,
+    scans: events.filter((event) => event.propertyId === property.id && event.eventType === 'qr_scan').length,
     rating: 0,
   }));
 
@@ -116,10 +137,10 @@ export default function OwnerDashboard() {
       label: 'Créer un livret',
       href: ROUTES.OWNER_PROPERTY_NEW,
     },
-    { icon: QrCode, label: 'Générer un QR code', href: '#' },
-    { icon: Calendar, label: 'Voir les réservations', href: '#' },
-    ...(publishedProperties[0] ? [{ icon: Share2, label: 'Voir le livret voyageur', href: ROUTES.PUBLIC_BOOKLET(publishedProperties[0].public_token) }] : []),
-    { icon: Users, label: 'Gérer l&apos;équipe', href: '#' }
+    { icon: QrCode, label: 'Générer un QR code', href: ROUTES.OWNER_PROPERTIES },
+    { icon: Calendar, label: 'Voir les réservations', href: ROUTES.OWNER_RESERVATIONS },
+    ...(publishedProperties[0] ? [{ icon: Share2, label: 'Voir le livret voyageur', href: ROUTES.PUBLIC_BOOKLET(publishedProperties[0].publicToken) }] : []),
+    { icon: Users, label: 'Gérer les voyageurs', href: ROUTES.OWNER_TRAVELERS }
   ];
 
   return (
@@ -158,10 +179,10 @@ export default function OwnerDashboard() {
             <div className="min-w-0 rounded-[1.75rem] border border-[#e8e1da] bg-white p-5 shadow-[0_12px_30px_rgba(31,41,37,.06)] sm:p-6 lg:col-span-2">
               <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="text-lg font-semibold text-foreground">Vues des livrets</h3>
-                <select className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-foreground sm:w-auto">
-                  <option>30 derniers jours</option>
-                  <option>7 derniers jours</option>
-                  <option>90 derniers jours</option>
+                <select value={period} onChange={(event) => setPeriod(Number(event.target.value))} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-foreground sm:w-auto">
+                  <option value={30}>30 derniers jours</option>
+                  <option value={7}>7 derniers jours</option>
+                  <option value={90}>90 derniers jours</option>
                 </select>
               </div>
               <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed border-[#dcd5ce] bg-[#faf8f5]">

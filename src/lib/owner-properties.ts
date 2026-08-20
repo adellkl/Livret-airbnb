@@ -21,6 +21,7 @@ export interface OwnerProperty {
   status: PropertyStatus;
   views: number;
   completion: number;
+  createdAt?: string;
   updatedAt: string;
   arrivalInstructions?: string;
   accessCode?: string;
@@ -38,9 +39,16 @@ export interface OwnerProperty {
   emergencyContact?: string;
   welcomeTitle?: string;
   accentColor?: string;
+  gallery?: Array<{ url: string; caption: string }>;
+  welcomeSubtitle?: string;
+  hostMessage?: string;
+  theme?: 'terra' | 'ocean' | 'sage';
+  language?: 'fr' | 'en';
+  showWifi?: boolean;
+  showMap?: boolean;
+  showFaq?: boolean;
+  showGallery?: boolean;
 }
-
-export const OWNER_PROPERTIES_STORAGE_KEY = 'livret-owner-properties';
 
 export const DEFAULT_OWNER_PROPERTIES: OwnerProperty[] = [
   {
@@ -117,33 +125,3 @@ export const DEFAULT_OWNER_PROPERTIES: OwnerProperty[] = [
     updatedAt: 'Il y a 2 semaines',
   },
 ];
-
-export function loadOwnerProperties(): OwnerProperty[] {
-  if (typeof window === 'undefined') return DEFAULT_OWNER_PROPERTIES;
-
-  const storedProperties = window.localStorage.getItem(
-    OWNER_PROPERTIES_STORAGE_KEY
-  );
-
-  if (!storedProperties) {
-    window.localStorage.setItem(
-      OWNER_PROPERTIES_STORAGE_KEY,
-      JSON.stringify(DEFAULT_OWNER_PROPERTIES)
-    );
-    return DEFAULT_OWNER_PROPERTIES;
-  }
-
-  try {
-    return JSON.parse(storedProperties) as OwnerProperty[];
-  } catch {
-    return DEFAULT_OWNER_PROPERTIES;
-  }
-}
-
-export function saveOwnerProperty(property: OwnerProperty) {
-  const currentProperties = loadOwnerProperties();
-  window.localStorage.setItem(
-    OWNER_PROPERTIES_STORAGE_KEY,
-    JSON.stringify([property, ...currentProperties])
-  );
-}

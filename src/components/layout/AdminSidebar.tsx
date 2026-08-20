@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { signOut } from 'firebase/auth';
 import { ROUTES } from '@/config/routes';
+import { firebaseAuth } from '@/lib/firebase/client';
 import {
-  LayoutDashboard,
   Users,
   Building2,
   Shield,
@@ -14,7 +16,8 @@ import {
   Activity,
   Settings,
   ChevronRight,
-  HelpCircle
+  HelpCircle,
+  LogOut,
 } from 'lucide-react';
 
 const menuSections = [
@@ -29,7 +32,7 @@ const menuSections = [
   {
     title: 'Support et abonnements',
     items: [
-      { icon: MessageSquare, label: 'Demandes d&apos;assistance', href: ROUTES.ADMIN_SUPPORT },
+      { icon: MessageSquare, label: 'Demandes d’assistance', href: ROUTES.ADMIN_SUPPORT },
       { icon: CreditCard, label: 'Abonnements', href: ROUTES.ADMIN_SUBSCRIPTIONS },
       { icon: FileText, label: 'Facturation', href: ROUTES.ADMIN_BILLING },
     ],
@@ -52,6 +55,19 @@ const menuSections = [
 
 export default function AdminSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    try {
+      await signOut(firebaseAuth);
+      router.replace(ROUTES.LOGIN);
+      router.refresh();
+    } finally {
+      setIsSigningOut(false);
+    }
+  };
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-[250px] bg-surface border-r border-border flex flex-col z-50">
@@ -94,7 +110,7 @@ export default function AdminSidebar() {
       </nav>
 
       <div className="p-4 border-t border-border">
-        <Link href="#" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-surface-soft hover:text-foreground transition-colors">
+        <Link href={ROUTES.ADMIN_SUPPORT} className="flex items-center space-x-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-surface-soft hover:text-foreground transition-colors">
           <HelpCircle size={20} />
           <span className="text-sm font-medium">Centre d&apos;aide</span>
         </Link>
@@ -103,7 +119,19 @@ export default function AdminSidebar() {
             <p className="text-sm font-medium text-foreground">Administrateur</p>
             <p className="text-xs text-muted-foreground">Super Admin</p>
           </div>
-          <ChevronRight size={16} className="text-muted-foreground" />
+          <div className="flex items-center gap-1">
+            <ChevronRight size={16} className="text-muted-foreground" />
+            <button
+              type="button"
+              aria-label="Se déconnecter"
+              title="Se déconnecter"
+              disabled={isSigningOut}
+              onClick={() => { void handleSignOut(); }}
+              className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-danger-light hover:text-danger disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
         </div>
       </div>
     </aside>

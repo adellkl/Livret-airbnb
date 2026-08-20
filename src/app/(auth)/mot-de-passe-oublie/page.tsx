@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Mail, Shield } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { firebaseAuth } from '@/lib/firebase/client';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -20,17 +21,16 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setIsSubmitting(true);
     setError('');
-    const supabase = createClient();
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-      email.trim().toLowerCase(),
-      { redirectTo: `${window.location.origin}/connexion` }
-    );
-    if (resetError) {
+    try {
+      await sendPasswordResetEmail(firebaseAuth, email.trim().toLowerCase(), {
+        url: `${window.location.origin}${ROUTES.LOGIN}`,
+      });
+      setSubmitted(true);
+    } catch {
       setError('Impossible d’envoyer le lien. Vérifiez l’adresse et réessayez.');
+    } finally {
       setIsSubmitting(false);
-      return;
     }
-    setSubmitted(true);
   };
 
   return (

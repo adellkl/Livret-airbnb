@@ -7,6 +7,12 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowRight,
   Building2,
+  BookOpen,
+  Calendar,
+  BarChart3,
+  Users,
+  Puzzle,
+  Settings,
   ExternalLink,
   LayoutDashboard,
   Menu,
@@ -15,6 +21,7 @@ import {
 } from 'lucide-react';
 import BrandMark from '@/components/layout/BrandMark';
 import { ROUTES } from '@/config/routes';
+import { useSubscription } from '@/hooks/useSubscription';
 
 interface MobileNavigationProps {
   type: 'owner' | 'admin';
@@ -23,7 +30,13 @@ interface MobileNavigationProps {
 const ownerMenuItems = [
   { label: 'Tableau de bord', href: ROUTES.OWNER_DASHBOARD, icon: LayoutDashboard },
   { label: 'Mes logements', href: ROUTES.OWNER_PROPERTIES, icon: Building2 },
+  { label: 'Livrets', href: ROUTES.OWNER_BOOKLETS, icon: BookOpen },
   { label: 'Nouveau logement', href: ROUTES.OWNER_PROPERTY_NEW, icon: Plus },
+  { label: 'Réservations', href: ROUTES.OWNER_RESERVATIONS, icon: Calendar },
+  { label: 'Statistiques', href: ROUTES.OWNER_STATISTICS, icon: BarChart3, proOnly: true },
+  { label: 'Voyageurs', href: ROUTES.OWNER_TRAVELERS, icon: Users },
+  { label: 'Intégrations', href: ROUTES.OWNER_INTEGRATIONS, icon: Puzzle, proOnly: true },
+  { label: 'Réglages', href: ROUTES.OWNER_SETTINGS, icon: Settings },
 ];
 
 const adminMenuItems = [
@@ -33,7 +46,10 @@ const adminMenuItems = [
 export default function MobileNavigation({ type }: MobileNavigationProps) {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
-  const menuItems = type === 'owner' ? ownerMenuItems : adminMenuItems;
+  const { isPaid, plan } = useSubscription();
+  const menuItems = (type === 'owner' ? ownerMenuItems : adminMenuItems).filter(
+    (item) => !('proOnly' in item) || !item.proOnly || isPaid,
+  );
 
   useEffect(() => {
     document.body.style.overflow = isOpen ? 'hidden' : '';
@@ -105,7 +121,9 @@ export default function MobileNavigation({ type }: MobileNavigationProps) {
                 const active =
                   pathname === item.href ||
                   (item.href === ROUTES.OWNER_PROPERTIES &&
-                    pathname.startsWith(`${ROUTES.OWNER_PROPERTIES}/`));
+                    pathname.startsWith(`${ROUTES.OWNER_PROPERTIES}/`)) ||
+                  (item.href === ROUTES.OWNER_BOOKLETS &&
+                    pathname.startsWith(`${ROUTES.OWNER_BOOKLETS}/`));
 
                 return (
                   <Link
@@ -140,9 +158,9 @@ export default function MobileNavigation({ type }: MobileNavigationProps) {
               </div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-[#27302c]">
-                  L’Atelier des Batignolles
+                  Votre espace propriétaire
                 </p>
-                <p className="text-xs text-[#807a75]">Propriétaire</p>
+                <p className="text-xs text-[#807a75]">{isPaid ? `Formule ${plan === 'business' ? 'Business' : 'Pro'}` : 'Formule gratuite'}</p>
               </div>
             </div>
             <Link

@@ -10,11 +10,10 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
-    "@supabase/ssr": "^0.7.0",
-    "@supabase/supabase-js": "^2.109.0",
     "@types/qrcode": "^1.5.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "firebase": "^12.17.1",
     "framer-motion": "^12.42.2",
     "lucide-react": "^1.25.0",
     "next": "16.2.11",

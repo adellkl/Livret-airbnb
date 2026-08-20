@@ -1,17 +1,19 @@
 'use client';
 
-import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import OwnerSidebar from '@/components/layout/OwnerSidebar';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 import { ROUTES } from '@/config/routes';
 import {
   type OwnerProperty,
 } from '@/lib/owner-properties';
-import { createClient } from '@/lib/supabase/client';
+import { firebaseAuth, firebaseAuthReady, firestore } from '@/lib/firebase/client';
+import { collection, doc, getDoc, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 import {
   ArrowLeft,
   ArrowRight,
@@ -98,6 +100,13 @@ type PropertyDraft = Omit<
   'id' | 'views' | 'completion' | 'updatedAt'
 >;
 
+type AddressSuggestion = {
+  label: string;
+  address: string;
+  city: string;
+  postalCode: string;
+};
+
 const initialProperty: PropertyDraft = {
   name: '',
   type: 'Appartement',
@@ -134,6 +143,15 @@ const initialProperty: PropertyDraft = {
   emergencyContact: '',
   welcomeTitle: 'Bienvenue chez vous',
   accentColor: '#d85b24',
+  gallery: [],
+  welcomeSubtitle: 'Votre guide privé pour un séjour serein',
+  hostMessage: '',
+  theme: 'terra',
+  language: 'fr',
+  showWifi: true,
+  showMap: true,
+  showFaq: true,
+  showGallery: true,
 };
 
 const fieldClass =
@@ -145,6 +163,8 @@ export default function NewPropertyPage() {
   const [property, setProperty] = useState<PropertyDraft>(initialProperty);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
+  const [isSearchingAddress, setIsSearchingAddress] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   const progress = (currentStep / steps.length) * 100;
@@ -176,6 +196,39 @@ export default function NewPropertyPage() {
     setProperty((current) => ({ ...current, [key]: value }));
     setError('');
   };
+
+  const togglePublication = () => {
+    setProperty((current) => ({
+      ...current,
+      status: current.status === 'published' ? 'draft' : 'published',
+    }));
+    setError('');
+  };
+
+  useEffect(() => {
+    const search = property.address.trim();
+    if (search.length < 3) {
+      setAddressSuggestions([]);
+      return;
+    }
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setIsSearchingAddress(true);
+      try {
+        const response = await fetch(`https://data.geopf.fr/geocodage/search?q=${encodeURIComponent(search)}&limit=5`, { signal: controller.signal });
+        const result = await response.json() as { features?: Array<{ properties?: { label?: string; name?: string; housenumber?: string; city?: string; postcode?: string } }> };
+        setAddressSuggestions((result.features ?? []).map((feature) => {
+          const details = feature.properties ?? {};
+          return { label: details.label ?? '', address: `${details.housenumber ? `${details.housenumber} ` : ''}${details.name ?? ''}`.trim(), city: details.city ?? '', postalCode: details.postcode ?? '' };
+        }).filter((item) => item.address));
+      } catch (searchError) {
+        if ((searchError as Error).name !== 'AbortError') setAddressSuggestions([]);
+      } finally {
+        setIsSearchingAddress(false);
+      }
+    }, 300);
+    return () => { controller.abort(); window.clearTimeout(timeout); };
+  }, [property.address]);
 
   const validateStep = () => {
     if (
@@ -224,80 +277,113 @@ export default function NewPropertyPage() {
     });
   };
 
-  const submitProperty = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const submitProperty = async () => {
     if (!validateStep() || isSubmitting) return;
     setIsSubmitting(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-      setError('Votre session a expiré. Reconnectez-vous pour enregistrer ce logement.');
-      setIsSubmitting(false);
-      return;
-    }
-
-    const { data: createdProperty, error: propertyError } = await supabase
-      .from('properties')
-      .insert({
-        owner_id: user.id,
+    try {
+      await firebaseAuthReady;
+      const user = firebaseAuth.currentUser;
+      if (!user) {
+        setError('Votre session n’est plus active. Reconnectez-vous pour enregistrer ce logement.');
+        return;
+      }
+      // The free plan is deliberately useful for a first property, while Pro
+      // unlocks a portfolio of properties. The profile is read from Firestore
+      // rather than trusting a value stored in the browser.
+      const [profileSnapshot, propertiesSnapshot] = await Promise.all([
+        getDoc(doc(firestore, 'profiles', user.uid)),
+        getDocs(query(collection(firestore, 'properties'), where('ownerId', '==', user.uid))),
+      ]);
+      const plan = profileSnapshot.data()?.subscriptionPlan;
+      const hasPaidPlan = plan === 'pro' || plan === 'business';
+      if (!hasPaidPlan && propertiesSnapshot.size >= 1) {
+        setError('La formule gratuite comprend un logement. Passez à Pro pour créer et gérer tous vos logements.');
+        return;
+      }
+      const amenities = (property.amenities ?? [])
+        .map((item) => item.trim())
+        .filter(Boolean);
+      const houseRules = (property.houseRules ?? [])
+        .map((item) => item.trim())
+        .filter(Boolean);
+      const faqItems = (property.faqItems ?? [])
+        .map((item) => item.trim())
+        .filter(Boolean);
+      const nearbyPlaces = (property.nearbyPlaces ?? [])
+        .filter((place) => place.name.trim())
+        .map((place) => ({
+          name: place.name.trim(),
+          category: place.category.trim() || 'Autre',
+          address: place.address.trim(),
+          note: place.note.trim(),
+        }));
+      const gallery = (property.gallery ?? [])
+        .filter((photo) => photo.url.trim())
+        .map((photo) => ({ url: photo.url.trim(), caption: photo.caption.trim() }));
+      const propertyRef = doc(collection(firestore, 'properties'));
+      const propertyPayload = {
+        ownerId: user.uid,
+        // The property id is the stable, unique token of its public guide.
+        // It makes every shared link and QR code specific to this property.
+        publicToken: propertyRef.id,
         name: property.name.trim(),
-        property_type: property.type.trim(),
-        address_line1: property.address.trim(),
-        postal_code: property.postalCode.trim(),
+        type: property.type.trim(),
+        address: property.address.trim(),
+        postalCode: property.postalCode.trim(),
         city: property.city.trim(),
         capacity: property.capacity,
         bedrooms: property.bedrooms,
-        check_in_time: property.checkIn || null,
-        check_out_time: property.checkOut || null,
-        wifi_name: property.wifiName.trim() || null,
-        wifi_password: property.wifiPassword || null,
+        checkIn: property.checkIn || '',
+        checkOut: property.checkOut || '',
+        wifiName: property.wifiName.trim(),
+        wifiPassword: property.wifiPassword,
         description: property.description.trim(),
-        host_name: property.hostName.trim(),
-        host_phone: property.hostPhone.trim(),
-        host_email: property.hostEmail.trim().toLowerCase(),
-        emergency_contact: property.emergencyContact?.trim() || null,
-        cover_image_url: property.coverImage.trim() || null,
+        hostName: property.hostName.trim(),
+        hostPhone: property.hostPhone.trim(),
+        hostEmail: property.hostEmail.trim().toLowerCase(),
+        emergencyContact: property.emergencyContact?.trim() || '',
+        coverImage: property.coverImage.trim(),
         status: property.status,
-        arrival_instructions: property.arrivalInstructions?.trim() || null,
-        access_instructions: property.accessCode?.trim() || null,
-        parking_instructions: property.parkingInstructions?.trim() || null,
-        departure_instructions: property.departureInstructions?.trim() || null,
-        welcome_title: property.welcomeTitle?.trim() || 'Bienvenue chez vous',
-        accent_color: property.accentColor || '#d85b24',
-        published_at: property.status === 'published' ? new Date().toISOString() : null,
-      })
-      .select('id, name')
-      .single();
-
-    if (propertyError || !createdProperty) {
-      setError('Impossible d’enregistrer ce logement. Vérifiez les informations saisies.');
+        arrivalInstructions: property.arrivalInstructions?.trim() || '',
+        accessCode: property.accessCode?.trim() || '',
+        parkingInstructions: property.parkingInstructions?.trim() || '',
+        departureInstructions: property.departureInstructions?.trim() || '',
+        welcomeTitle: property.welcomeTitle?.trim() || 'Bienvenue chez vous',
+        accentColor: property.accentColor || '#d85b24',
+        gallery,
+        welcomeSubtitle: property.welcomeSubtitle?.trim() || '', hostMessage: property.hostMessage?.trim() || '', theme: property.theme ?? 'terra', language: property.language ?? 'fr', showWifi: property.showWifi ?? true, showMap: property.showMap ?? true, showFaq: property.showFaq ?? true, showGallery: property.showGallery ?? true,
+        amenities,
+        houseRules,
+        faqItems,
+        nearbyPlaces,
+        views: 0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        publishedAt: property.status === 'published' ? serverTimestamp() : null,
+      };
+      const propertyId = propertyRef.id;
+      const batch = writeBatch(firestore);
+      batch.set(propertyRef, propertyPayload);
+      batch.set(doc(firestore, 'public_guides', propertyId), {
+        ...propertyPayload,
+        propertyId,
+        publishedAt: propertyPayload.publishedAt ?? serverTimestamp(),
+      });
+      await batch.commit();
+      window.sessionStorage.setItem('livret-property-created', property.name.trim());
+      router.push(ROUTES.OWNER_PROPERTIES);
+    } catch (submissionError) {
+      const code = submissionError instanceof Error ? submissionError.message : '';
+      setError(
+        code.includes('permission-denied')
+          ? 'Firebase refuse l’enregistrement. Vérifiez votre connexion et les règles Firestore.'
+          : 'Impossible d’enregistrer ce logement. Vérifiez les informations saisies.',
+      );
       setIsSubmitting(false);
-      return;
-    }
-
-    const propertyId = createdProperty.id;
-    const writes = [
-      property.amenities?.length ? supabase.from('property_amenities').insert(property.amenities.filter(Boolean).map((name, position) => ({ property_id: propertyId, name: name.trim(), position }))) : null,
-      property.houseRules?.length ? supabase.from('property_house_rules').insert(property.houseRules.filter(Boolean).map((ruleText, position) => ({ property_id: propertyId, rule_text: ruleText.trim(), position }))) : null,
-      property.faqItems?.length ? supabase.from('property_faqs').insert(property.faqItems.filter(Boolean).map((item, position) => {
-        const [question, ...answerParts] = item.split('—');
-        return { property_id: propertyId, question: question.trim(), answer: answerParts.join('—').trim() || 'Réponse à compléter.', position };
-      })) : null,
-      property.nearbyPlaces?.filter((place) => place.name.trim()).length ? supabase.from('nearby_places').insert(property.nearbyPlaces.filter((place) => place.name.trim()).map((place, position) => ({ property_id: propertyId, name: place.name.trim(), category: place.category.trim() || 'Autre', address: place.address.trim() || null, note: place.note.trim() || null, position }))) : null,
-    ].filter(Boolean);
-    const results = await Promise.all(writes);
-    if (results.some((result) => result?.error)) {
-      setError('Le logement a été créé, mais une partie du contenu doit être ajoutée de nouveau.');
+    } finally {
       setIsSubmitting(false);
-      return;
     }
-
-    window.sessionStorage.setItem(
-      'livret-property-created',
-      createdProperty.name
-    );
-    router.push(ROUTES.OWNER_PROPERTIES);
   };
 
   return (
@@ -407,7 +493,7 @@ export default function NewPropertyPage() {
 
           <form
             ref={formRef}
-            onSubmit={submitProperty}
+            onSubmit={(event) => event.preventDefault()}
             className="scroll-mt-24 overflow-hidden rounded-[1.8rem] border border-[#e6dfd8] bg-[#fbfaf8] shadow-[0_18px_50px_rgba(33,28,24,0.06)]"
           >
             <div className="border-b border-[#ebe5df] px-5 py-6 sm:px-8">
@@ -515,15 +601,27 @@ export default function NewPropertyPage() {
                   >
                     <div className="grid gap-5 sm:grid-cols-2">
                       <Field label="Adresse" className="sm:col-span-2">
-                        <Input
-                          value={property.address}
-                          onChange={(event) =>
-                            updateProperty('address', event.target.value)
-                          }
-                          placeholder="12 rue des Batignolles"
-                          className={fieldClass}
-                          required
-                        />
+                        <div className="relative">
+                          <Input
+                            value={property.address}
+                            onChange={(event) => updateProperty('address', event.target.value)}
+                            onBlur={() => window.setTimeout(() => setAddressSuggestions([]), 150)}
+                            placeholder="12 rue des Batignolles"
+                            className={fieldClass}
+                            autoComplete="street-address"
+                            required
+                          />
+                          {isSearchingAddress && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-[#8a837d]">Recherche…</span>}
+                          {addressSuggestions.length > 0 && (
+                            <div className="absolute inset-x-0 z-30 mt-2 overflow-hidden rounded-xl border border-[#ded8d1] bg-white shadow-[0_16px_36px_rgba(31,41,37,.15)]">
+                              {addressSuggestions.map((suggestion) => (
+                                <button key={suggestion.label} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { updateProperty('address', suggestion.address); updateProperty('city', suggestion.city); updateProperty('postalCode', suggestion.postalCode); setAddressSuggestions([]); }} className="block w-full border-b border-[#eee8e2] px-4 py-3 text-left text-sm text-[#29302d] last:border-0 hover:bg-[#f8f5f1]">
+                                  <span className="block font-medium">{suggestion.address}</span><span className="mt-0.5 block text-xs text-[#77736f]">{suggestion.postalCode} {suggestion.city}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </Field>
                       <Field label="Ville">
                         <Input
@@ -840,6 +938,27 @@ export default function NewPropertyPage() {
                   </FormSection>
 
                   <FormSection
+                    icon={ImageIcon}
+                    title="Galerie photos"
+                    description="Ajoutez les photos de chaque pièce avec une courte description visible par vos voyageurs."
+                  >
+                    <div className="space-y-4">
+                      {(property.gallery ?? []).map((photo, index) => (
+                        <div key={index} className="grid gap-3 rounded-2xl border border-[#e6dfd8] bg-white p-3 sm:grid-cols-[120px_1fr_1fr_auto] sm:items-center">
+                          <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-[#f3eee8]">
+                            {photo.url ? <Image src={photo.url} alt={photo.caption || 'Photo du logement'} fill unoptimized sizes="120px" className="object-cover" /> : <ImageIcon className="absolute inset-0 m-auto text-[#a39c95]" size={24} />}
+                          </div>
+                          <Input value={photo.url} onChange={(event) => updateProperty('gallery', (property.gallery ?? []).map((item, itemIndex) => itemIndex === index ? { ...item, url: event.target.value } : item))} placeholder="URL de la photo" className={fieldClass} />
+                          <Input value={photo.caption} onChange={(event) => updateProperty('gallery', (property.gallery ?? []).map((item, itemIndex) => itemIndex === index ? { ...item, caption: event.target.value } : item))} placeholder="Ex. Chambre principale" className={fieldClass} />
+                          <button type="button" onClick={() => updateProperty('gallery', (property.gallery ?? []).filter((_, itemIndex) => itemIndex !== index))} className="mx-auto rounded-xl p-3 text-[#b8453c] hover:bg-[#fdeceb]" aria-label="Supprimer cette photo"><Trash2 size={18} /></button>
+                        </div>
+                      ))}
+                      <Button type="button" variant="outline" onClick={() => updateProperty('gallery', [...(property.gallery ?? []), { url: '', caption: '' }])} className="w-full rounded-xl border-dashed"><Plus className="mr-2 h-4 w-4" />Ajouter une photo</Button>
+                      <p className="text-xs leading-5 text-[#77736f]">Collez l’URL d’une image hébergée. L’envoi de fichiers directs sera ajouté lorsque Firebase Storage sera activé.</p>
+                    </div>
+                  </FormSection>
+
+                  <FormSection
                     icon={Palette}
                     title="Identité du livret"
                     description="Personnalisez le message principal et la couleur d’accent."
@@ -865,6 +984,18 @@ export default function NewPropertyPage() {
                           className="h-12 w-full cursor-pointer rounded-xl border border-[#ded8d1] bg-white p-1 sm:w-20"
                         />
                       </Field>
+                    </div>
+                  </FormSection>
+
+                  <FormSection icon={Sparkles} title="Expérience voyageur" description="Choisissez l’ambiance et les informations visibles dans le guide public.">
+                    <div className="space-y-5">
+                      <div className="grid gap-5 sm:grid-cols-2">
+                        <Field label="Sous-titre d’accueil"><Input value={property.welcomeSubtitle} onChange={(event) => updateProperty('welcomeSubtitle', event.target.value)} placeholder="Votre guide privé pour un séjour serein" className={fieldClass} /></Field>
+                        <Field label="Langue du guide"><select value={property.language} onChange={(event) => updateProperty('language', event.target.value as PropertyDraft['language'])} className={`${fieldClass} w-full appearance-none border`}><option value="fr">Français</option><option value="en">English</option></select></Field>
+                      </div>
+                      <Field label="Message personnel de l’hôte"><Textarea value={property.hostMessage} onChange={(event) => updateProperty('hostMessage', event.target.value)} placeholder="Ex. Je vous souhaite un excellent séjour, n’hésitez pas à me contacter." className="min-h-24 resize-none rounded-xl border-[#ded8d1] bg-white p-4 shadow-none" /></Field>
+                      <div><p className="mb-3 text-sm font-medium text-[#3e4641]">Thème visuel</p><div className="grid grid-cols-3 gap-3">{([{ id: 'terra', label: 'Terracotta', color: '#d85b24' }, { id: 'ocean', label: 'Océan', color: '#1d6f8c' }, { id: 'sage', label: 'Sauge', color: '#367566' }] as const).map((theme) => <button key={theme.id} type="button" onClick={() => updateProperty('theme', theme.id)} className={`rounded-xl border-2 p-3 text-left ${property.theme === theme.id ? 'border-[#17232c]' : 'border-[#e6dfd8]'}`}><span className="block h-7 rounded-lg" style={{ backgroundColor: theme.color }} /><span className="mt-2 block text-xs font-semibold">{theme.label}</span></button>)}</div></div>
+                      <div className="grid gap-2 sm:grid-cols-2">{([{ key: 'showWifi', label: 'Afficher le Wi‑Fi' }, { key: 'showMap', label: 'Afficher la carte' }, { key: 'showFaq', label: 'Afficher la FAQ' }, { key: 'showGallery', label: 'Afficher la galerie' }] as const).map((option) => <label key={option.key} className="flex items-center gap-3 rounded-xl border border-[#e6dfd8] bg-white p-3 text-sm font-medium"><input type="checkbox" checked={property[option.key] ?? true} onChange={(event) => updateProperty(option.key, event.target.checked)} className="h-4 w-4 accent-[#d85b24]" />{option.label}</label>)}</div>
                     </div>
                   </FormSection>
                 </div>
@@ -919,22 +1050,16 @@ export default function NewPropertyPage() {
                         type="button"
                         role="switch"
                         aria-checked={property.status === 'published'}
-                        onClick={() =>
-                          updateProperty(
-                            'status',
-                            property.status === 'published'
-                              ? 'draft'
-                              : 'published'
-                          )
-                        }
-                        className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+                        aria-label="Publier le livret dès maintenant"
+                        onClick={togglePublication}
+                        className={`relative h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d85b24] focus-visible:ring-offset-2 ${
                           property.status === 'published'
                             ? 'bg-[#397d6d]'
                             : 'bg-[#d8d3cd]'
                         }`}
                       >
                         <span
-                          className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                          className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
                             property.status === 'published'
                               ? 'translate-x-6'
                               : 'translate-x-1'
@@ -981,7 +1106,8 @@ export default function NewPropertyPage() {
                 </button>
               ) : (
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={() => void submitProperty()}
                   disabled={isSubmitting}
                   className="flex h-11 items-center gap-2 rounded-xl bg-[#d85b24] px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
                 >

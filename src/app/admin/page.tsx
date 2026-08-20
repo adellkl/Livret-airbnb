@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 
 import AdminSidebar from '@/components/layout/AdminSidebar';
 import { Button } from '@/components/ui/button';
@@ -9,16 +9,12 @@ import {
   Users,
   Building2,
   Home,
-  MessageSquare,
   CreditCard,
   TrendingUp,
   AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Clock,
   MoreVertical
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { useAdminData } from '@/hooks/useAdminData';
 
 type Organization = {
   id: string;
@@ -30,37 +26,22 @@ type Organization = {
 };
 
 export default function AdminDashboard() {
-  const [counts, setCounts] = useState({ users: 0, organizations: 0, publishedProperties: 0 });
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
-
-  useEffect(() => {
-    let active = true;
-    const load = async () => {
-      const supabase = createClient();
-      const [{ data: profiles }, { data: properties }] = await Promise.all([
-        supabase.from('profiles').select('id, full_name, organization_name, created_at'),
-        supabase.from('properties').select('owner_id, status'),
-      ]);
-      if (!active) return;
-      const allProperties = properties ?? [];
-      const allProfiles = profiles ?? [];
-      setCounts({
-        users: allProfiles.length,
-        organizations: allProfiles.filter((profile) => profile.organization_name).length,
-        publishedProperties: allProperties.filter((property) => property.status === 'published').length,
-      });
-      setOrganizations(allProfiles.map((profile) => ({
-        id: profile.id,
-        name: profile.organization_name || profile.full_name || 'Sans établissement',
-        email: 'Adresse e-mail protégée',
-        properties: allProperties.filter((property) => property.owner_id === profile.id).length,
-        lastConnection: new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium' }).format(new Date(profile.created_at)),
-        status: 'active',
-      })));
-    };
-    void load();
-    return () => { active = false; };
-  }, []);
+  const { profiles, properties, events, isLoading, error } = useAdminData();
+  const organizations = useMemo<Organization[]>(() => profiles
+    .filter((profile) => profile.role === 'owner' || profile.role === 'admin')
+    .map((profile) => ({
+      id: profile.id,
+      name: String(profile.organizationName || profile.fullName || 'Sans établissement'),
+      email: String(profile.email || 'Adresse e-mail protégée'),
+      properties: properties.filter((property) => property.ownerId === profile.id).length,
+      lastConnection: 'Synchronisé en direct',
+      status: profile.subscriptionStatus || 'active',
+    })), [profiles, properties]);
+  const counts = {
+    users: profiles.length,
+    organizations: organizations.length,
+    publishedProperties: properties.filter((property) => property.status === 'published').length,
+  };
 
   const stats = [
     { icon: Users, label: 'Utilisateurs', value: String(counts.users), trend: 'En direct', trendUp: true },
@@ -69,17 +50,20 @@ export default function AdminDashboard() {
   ];
 
   const alerts = [
-    { type: 'payment', message: '3 paiements échoués', count: 3 },
-    { type: 'content', message: '5 contenus signalés', count: 5 },
-    { type: 'validation', message: '2 organisations à valider', count: 2 }
+    { type: 'published', message: 'livrets publiés', count: counts.publishedProperties },
+    { type: 'events', message: 'événements de guide', count: events.length },
+    { type: 'subscriptions', message: 'abonnements actifs', count: profiles.filter((profile) => profile.subscriptionStatus === 'active').length },
   ];
 
-  const recentActivity = [
-    { action: 'Nouvelle inscription', entity: 'Conciergerie Lyon', time: 'Il y a 30min' },
-    { action: 'Mise à jour plan', entity: 'HostnFly', time: 'Il y a 1h' },
-    { action: 'Demande support', entity: 'GuestReady', time: 'Il y a 2h' },
-    { action: 'Nouveau logement', entity: 'BNB Solutions', time: 'Il y a 3h' }
-  ];
+  const recentActivity = events.slice(0, 4).map((event) => ({
+    action: event.eventType || 'Consultation du guide',
+    entity: profiles.find((profile) => profile.id === event.ownerId)?.fullName || 'Propriétaire',
+    time: event.occurredAt?.toDate?.() ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(event.occurredAt.toDate()) : 'À l’instant',
+  }));
+  const plans = ['free', 'pro', 'business'].map((plan) => {
+    const count = profiles.filter((profile) => (profile.subscriptionPlan || 'free') === plan).length;
+    return { label: plan === 'free' ? 'Starter' : plan[0].toUpperCase() + plan.slice(1), count, percentage: profiles.length ? Math.round((count / profiles.length) * 100) : 0 };
+  });
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -103,7 +87,7 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-semibold text-foreground">Tableau de bord administrateur</h1>
-              <p className="text-sm text-muted-foreground mt-1">Vue d'ensemble de la plateforme</p>
+              <p className="text-sm text-muted-foreground mt-1">Vue d’ensemble de la plateforme</p>
             </div>
             <div className="flex items-center gap-3">
               <Button variant="outline" size="sm">
@@ -115,6 +99,8 @@ export default function AdminDashboard() {
         </div>
 
         <main className="p-8">
+          {isLoading && <p className="mb-6 rounded-lg border border-border bg-surface px-4 py-3 text-sm text-muted-foreground">Synchronisation des données administrateur…</p>}
+          {error && <p className="mb-6 rounded-lg border border-danger bg-danger-light px-4 py-3 text-sm text-danger">{error}</p>}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {stats.map((stat, index) => (
               <div key={index} className="bg-surface rounded-xl p-6 shadow-premium">
@@ -167,6 +153,7 @@ export default function AdminDashboard() {
                         </td>
                       </tr>
                     ))}
+                    {!isLoading && organizations.length === 0 && <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground">Aucune organisation à afficher.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -181,8 +168,8 @@ export default function AdminDashboard() {
                       <div className="flex items-center gap-3">
                         <AlertTriangle size={18} className="text-warning" />
                         <div>
-                          <p className="text-sm font-medium text-foreground">{alert.message}</p>
-                          <p className="text-xs text-muted-foreground">{alert.count} éléments</p>
+                          <p className="text-sm font-medium text-foreground">{alert.count} {alert.message}</p>
+                          <p className="text-xs text-muted-foreground">Donnée synchronisée</p>
                         </div>
                       </div>
                       <Button variant="outline" size="sm" className="h-8">
@@ -205,6 +192,7 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                   ))}
+                  {!isLoading && recentActivity.length === 0 && <p className="text-sm text-muted-foreground">Aucune activité enregistrée pour le moment.</p>}
                 </div>
               </div>
             </div>
@@ -225,33 +213,15 @@ export default function AdminDashboard() {
             <div className="bg-surface rounded-xl p-6 shadow-premium">
               <h3 className="text-lg font-semibold text-foreground mb-4">Distribution des plans</h3>
               <div className="space-y-4">
-                <div>
+                {plans.map((plan) => <div key={plan.label}>
                   <div className="flex justify-between mb-2">
-                    <span className="text-sm text-foreground">Starter</span>
-                    <span className="text-sm text-muted-foreground">35%</span>
+                    <span className="text-sm text-foreground">{plan.label}</span>
+                    <span className="text-sm text-muted-foreground">{plan.percentage}% ({plan.count})</span>
                   </div>
                   <div className="h-2 bg-surface-soft rounded-full overflow-hidden">
-                    <div className="h-full bg-primary w-[35%]"></div>
+                    <div className="h-full bg-primary transition-all" style={{ width: `${plan.percentage}%` }}></div>
                   </div>
-                </div>
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-sm text-foreground">Pro</span>
-                    <span className="text-sm text-muted-foreground">45%</span>
-                  </div>
-                  <div className="h-2 bg-surface-soft rounded-full overflow-hidden">
-                    <div className="h-full bg-primary w-[45%]"></div>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-sm text-foreground">Business</span>
-                    <span className="text-sm text-muted-foreground">20%</span>
-                  </div>
-                  <div className="h-2 bg-surface-soft rounded-full overflow-hidden">
-                    <div className="h-full bg-primary w-[20%]"></div>
-                  </div>
-                </div>
+                </div>)}
               </div>
             </div>
           </div>

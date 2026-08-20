@@ -2,10 +2,12 @@
 
 import { type FormEvent, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, Mail, Shield, Sparkles } from 'lucide-react';
 import { ROUTES } from '@/config/routes';
-import { createClient } from '@/lib/supabase/client';
+import { firebaseAuth, firebaseAuthReady, firestore } from '@/lib/firebase/client';
+import { doc, getDoc } from 'firebase/firestore';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import AuthShell from '@/components/auth/AuthShell';
 import AuthCard from '@/components/auth/AuthCard';
 import AccountTypeSelector from '@/components/auth/AccountTypeSelector';
@@ -20,16 +22,13 @@ const labelClass = 'text-xs font-bold uppercase tracking-[0.08em] text-[#4e5953]
 
 export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [step, setStep] = useState<1 | 2>(1);
   const [accountType, setAccountType] = useState<'owner' | 'admin'>('owner');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(() => searchParams.get('error') === 'oauth'
-    ? 'La connexion avec Google n’a pas pu être finalisée. Réessayez.'
-    : '');
+  const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -38,40 +37,35 @@ export default function LoginPage() {
 
     setIsSubmitting(true);
     setError('');
-    const supabase = createClient();
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
-    });
+    try {
+      await firebaseAuthReady;
+      const credential = await signInWithEmailAndPassword(
+        firebaseAuth,
+        email.trim().toLowerCase(),
+        password,
+      );
+      const profile = await getDoc(doc(firestore, 'profiles', credential.user.uid));
+      const role = profile.data()?.role;
 
-    if (signInError || !data.user) {
+      if (!profile.exists() || (role !== 'owner' && role !== 'admin')) {
+        await signOut(firebaseAuth);
+        setError('Votre compte est incomplet. Contactez le support.');
+        return;
+      }
+
+      if (accountType === 'admin' && role !== 'admin') {
+        await signOut(firebaseAuth);
+        setError('Ce compte ne dispose pas des droits administrateur.');
+        return;
+      }
+
+      router.replace(role === 'admin' ? ROUTES.ADMIN_DASHBOARD : ROUTES.OWNER_DASHBOARD);
+      router.refresh();
+    } catch {
       setError('Adresse e-mail ou mot de passe incorrect.');
+    } finally {
       setIsSubmitting(false);
-      return;
     }
-
-    const { data: roleData, error: roleError } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', data.user.id)
-      .single();
-
-    if (roleError || !roleData) {
-      await supabase.auth.signOut({ scope: 'local' });
-      setError('Votre compte est incomplet. Contactez le support.');
-      setIsSubmitting(false);
-      return;
-    }
-
-    if (accountType === 'admin' && roleData.role !== 'admin') {
-      await supabase.auth.signOut({ scope: 'local' });
-      setError('Ce compte ne dispose pas des droits administrateur.');
-      setIsSubmitting(false);
-      return;
-    }
-
-    router.replace(roleData.role === 'admin' ? ROUTES.ADMIN_DASHBOARD : ROUTES.OWNER_DASHBOARD);
-    router.refresh();
   };
 
   return (
@@ -136,6 +130,7 @@ export default function LoginPage() {
           </>
         ) : (
           <form className="space-y-5" onSubmit={handleSubmit}>
+            <input type="hidden" name="username" autoComplete="username" value={email} />
             <div className="flex items-center justify-between gap-4 rounded-2xl bg-[#f5f2ec] px-4 py-3">
               <div className="min-w-0">
                 <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#8b928e]">

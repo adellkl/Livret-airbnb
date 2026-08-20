@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import QRCode from 'qrcode';
 import OwnerSidebar from '@/components/layout/OwnerSidebar';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import MobileNavigation from '@/components/layout/MobileNavigation';
@@ -11,12 +12,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   type OwnerProperty,
 } from '@/lib/owner-properties';
-import { createClient } from '@/lib/supabase/client';
+import { firebaseAuth, firestore } from '@/lib/firebase/client';
+import { doc, getDoc } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { toOwnerProperty } from '@/lib/property-mappers';
 import { 
   Copy,
-  RefreshCw,
   Download,
+  ExternalLink,
   Share2,
   Mail,
   QrCode,
@@ -32,6 +35,7 @@ import {
 
 export default function PropertyDetailPage() {
   const params = useParams<{ propertyId: string }>();
+  const router = useRouter();
   const [ownerProperty, setOwnerProperty] = useState<OwnerProperty>(
     {
       id: '', name: '', type: '', address: '', city: '', postalCode: '', capacity: 0,
@@ -40,35 +44,73 @@ export default function PropertyDetailPage() {
       completion: 0, updatedAt: '',
     }
   );
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     let active = true;
-    const load = async () => {
-      const { data } = await createClient()
-        .from('properties')
-        .select('*')
-        .eq('id', params.propertyId)
-        .maybeSingle();
-      if (active && data) setOwnerProperty(toOwnerProperty(data as Record<string, unknown>));
-    };
-    void load();
+    const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
+      if (!user) {
+        router.replace('/connexion');
+        return;
+      }
+      try {
+        const snapshot = await getDoc(doc(firestore, 'properties', params.propertyId));
+        if (!active) return;
+        if (!snapshot.exists()) {
+          setLoadError('Ce logement est introuvable ou ne vous appartient pas.');
+          return;
+        }
+        setOwnerProperty(toOwnerProperty({ id: snapshot.id, ...snapshot.data() }));
+      } catch {
+        if (active) setLoadError('Impossible de charger ce logement. Vérifiez votre connexion puis réessayez.');
+      }
+    });
+    return () => { active = false; unsubscribe(); };
+  }, [params.propertyId, router]);
+
+  const publicUrl = typeof window === 'undefined'
+    ? `/guide/${ownerProperty.id}`
+    : `${window.location.origin}/guide/${ownerProperty.id}`;
+  const previewUrl = ownerProperty.status === 'published' ? publicUrl : `${publicUrl}?preview=1`;
+  const qrUrl = `${publicUrl}?source=qr`;
+
+  useEffect(() => {
+    if (!ownerProperty.id) {
+      setQrCodeUrl('');
+      return;
+    }
+    let active = true;
+    QRCode.toDataURL(qrUrl, {
+      width: 900,
+      margin: 2,
+      errorCorrectionLevel: 'H',
+      color: { dark: '#17232c', light: '#ffffff' },
+    }).then((value) => { if (active) setQrCodeUrl(value); });
     return () => { active = false; };
-  }, [params.propertyId]);
+  }, [ownerProperty.id, ownerProperty.status, publicUrl]);
+
+  const copyPublicLink = async () => {
+    await navigator.clipboard.writeText(publicUrl);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  };
 
   const property = {
     ...ownerProperty,
     address: `${ownerProperty.address}, ${ownerProperty.postalCode} ${ownerProperty.city}`,
     image: ownerProperty.coverImage,
-    linkStatus: ownerProperty.status === 'published' ? 'active' : 'inactive',
-    createdAt: '29 juillet 2026',
+    linkStatus: ownerProperty.id ? 'active' : 'inactive',
+    createdAt: ownerProperty.createdAt || '—',
     lastModified: ownerProperty.updatedAt,
-    secureLink: `https://livret-accueil.fr/guide/${ownerProperty.id}`,
+    secureLink: publicUrl,
   };
 
   const stats = [
-    { label: 'Consultations', value: '423', icon: Eye },
-    { label: 'Visiteurs uniques', value: '287', icon: Users },
-    { label: 'Taux de consultation', value: '92%', icon: TrendingUp }
+    { label: 'Consultations', value: String(ownerProperty.views), icon: Eye },
+    { label: 'Visiteurs uniques', value: String(ownerProperty.views), icon: Users },
+    { label: 'Taux de consultation', value: ownerProperty.views ? '100%' : '—', icon: TrendingUp }
   ];
 
   const recentDevices = [
@@ -86,6 +128,7 @@ export default function PropertyDetailPage() {
         <DashboardHeader title={property.name} />
 
         <main className="mx-auto max-w-[1440px] px-4 py-5 pb-24 sm:px-8 sm:py-8">
+          {loadError && <div className="mb-6 rounded-2xl border border-[#efc1bd] bg-[#fdeceb] px-5 py-4 text-sm text-[#b8453c]">{loadError}</div>}
           <div className="mb-6 grid gap-5 lg:grid-cols-3 lg:gap-8">
             <div className="lg:col-span-2">
               <img
@@ -131,14 +174,14 @@ export default function PropertyDetailPage() {
               </div>
 
               <Tabs defaultValue="link" className="overflow-hidden rounded-2xl bg-surface shadow-premium">
-                <TabsList className="h-auto w-full justify-start overflow-x-auto rounded-none border-b border-border p-0">
-                  <TabsTrigger value="link" className="shrink-0 rounded-none px-4 py-4 text-xs data-[state=active]:border-b-2 data-[state=active]:border-primary sm:px-6 sm:text-sm">
+                <TabsList className="h-auto w-full overflow-hidden rounded-none border-b border-border p-0">
+                  <TabsTrigger value="link" className="min-w-0 flex-1 rounded-none px-2 py-4 text-xs data-[state=active]:border-b-2 data-[state=active]:border-primary sm:px-6 sm:text-sm">
                     Lien d'accès
                   </TabsTrigger>
-                  <TabsTrigger value="stats" className="shrink-0 rounded-none px-4 py-4 text-xs data-[state=active]:border-b-2 data-[state=active]:border-primary sm:px-6 sm:text-sm">
+                  <TabsTrigger value="stats" className="min-w-0 flex-1 rounded-none px-2 py-4 text-xs data-[state=active]:border-b-2 data-[state=active]:border-primary sm:px-6 sm:text-sm">
                     Statistiques
                   </TabsTrigger>
-                  <TabsTrigger value="settings" className="shrink-0 rounded-none px-4 py-4 text-xs data-[state=active]:border-b-2 data-[state=active]:border-primary sm:px-6 sm:text-sm">
+                  <TabsTrigger value="settings" className="min-w-0 flex-1 rounded-none px-2 py-4 text-xs data-[state=active]:border-b-2 data-[state=active]:border-primary sm:px-6 sm:text-sm">
                     Paramètres
                   </TabsTrigger>
                 </TabsList>
@@ -154,28 +197,28 @@ export default function PropertyDetailPage() {
                           readOnly
                           className="flex-1 px-4 py-3 bg-surface-soft border border-border rounded-lg text-sm text-foreground"
                         />
-                        <Button variant="outline" size="sm" className="h-12">
+                        <Button variant="outline" size="sm" className="h-12" onClick={() => void copyPublicLink()} disabled={!ownerProperty.id}>
                           <Copy size={16} className="mr-2" />
-                          Copier
+                          {copied ? 'Copié !' : 'Copier'}
                         </Button>
-                        <Button variant="outline" size="sm" className="h-12">
-                          <RefreshCw size={16} className="mr-2" />
-                          Régénérer
+                        <Button variant="outline" size="sm" className="h-12" onClick={() => window.open(previewUrl, '_blank', 'noopener,noreferrer')} disabled={!ownerProperty.id}>
+                          <ExternalLink size={16} className="mr-2" />
+                          Ouvrir
                         </Button>
                       </div>
                     </div>
 
-                    <div>
+                    <div id="qr-code-section">
                       <h4 className="text-sm font-medium text-foreground mb-3">QR Code</h4>
-                      <div className="bg-surface-soft rounded-lg p-6 flex items-center justify-center mb-4">
-                        <div className="w-32 h-32 bg-white rounded-lg flex items-center justify-center">
-                          <QrCode size={64} className="text-foreground" />
-                        </div>
+                      <div className="bg-surface-soft rounded-lg p-6 flex min-h-48 items-center justify-center mb-4">
+                        {qrCodeUrl ? <img src={qrCodeUrl} alt={`QR code du livret ${property.name}`} className="h-44 w-44 rounded-xl bg-white p-2" /> : <div className="text-center text-sm text-muted-foreground"><QrCode size={40} className="mx-auto mb-3" />Génération du QR code…</div>}
                       </div>
-                      <Button variant="outline" className="w-full">
+                      <a href={qrCodeUrl || undefined} download={`qr-code-${ownerProperty.name || 'livret'}.png`} className="block">
+                      <Button variant="outline" className="w-full" disabled={!qrCodeUrl}>
                         <Download size={16} className="mr-2" />
                         Télécharger le QR code
                       </Button>
+                      </a>
                     </div>
 
                     <div>
@@ -253,15 +296,15 @@ export default function PropertyDetailPage() {
 
                 <TabsContent value="settings" className="p-6">
                   <div className="space-y-4">
-                    <Button variant="outline" className="w-full justify-start">
+                    <Button variant="outline" className="w-full justify-start" onClick={() => window.open(previewUrl, '_blank', 'noopener,noreferrer')} disabled={!ownerProperty.id}>
                       <Eye size={18} className="mr-3" />
                       Aperçu public
                     </Button>
-                    <Button variant="outline" className="w-full justify-start">
+                    <Button variant="outline" className="w-full justify-start" onClick={() => window.location.assign(`mailto:?subject=${encodeURIComponent(`Livret d’accueil — ${ownerProperty.name}`)}&body=${encodeURIComponent(publicUrl)}`)} disabled={!ownerProperty.id}>
                       <Mail size={18} className="mr-3" />
                       Partager par e-mail
                     </Button>
-                    <Button variant="outline" className="w-full justify-start">
+                    <Button variant="outline" className="w-full justify-start" onClick={() => void copyPublicLink()} disabled={!ownerProperty.id}>
                       <Share2 size={18} className="mr-3" />
                       Inviter des voyageurs
                     </Button>
@@ -286,15 +329,15 @@ export default function PropertyDetailPage() {
               <div className="bg-surface rounded-xl p-6 shadow-premium">
                 <h3 className="text-lg font-semibold text-foreground mb-4">Actions rapides</h3>
                 <div className="space-y-2">
-                  <Button variant="ghost" className="w-full justify-start">
+                  <Button variant="ghost" className="w-full justify-start" onClick={() => window.location.assign(`mailto:?subject=${encodeURIComponent(`Livret d’accueil — ${ownerProperty.name}`)}&body=${encodeURIComponent(publicUrl)}`)} disabled={!ownerProperty.id}>
                     <Mail size={18} className="mr-3 text-muted-foreground" />
                     Envoyer par e-mail
                   </Button>
-                  <Button variant="ghost" className="w-full justify-start">
+                  <Button variant="ghost" className="w-full justify-start" onClick={() => document.getElementById('qr-code-section')?.scrollIntoView({ behavior: 'smooth' })}>
                     <QrCode size={18} className="mr-3 text-muted-foreground" />
                     Générer QR code
                   </Button>
-                  <Button variant="ghost" className="w-full justify-start">
+                  <Button variant="ghost" className="w-full justify-start" onClick={() => void copyPublicLink()} disabled={!ownerProperty.id}>
                     <Copy size={18} className="mr-3 text-muted-foreground" />
                     Copier le lien
                   </Button>

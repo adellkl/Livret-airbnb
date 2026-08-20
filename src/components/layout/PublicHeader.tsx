@@ -26,6 +26,12 @@ const mobileLinks = [
 
 export default function PublicHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const scrollToPageTop = () => window.scrollTo(0, 0);
+
+  const handleMobileNavigation = () => {
+    setMobileMenuOpen(false);
+    scrollToPageTop();
+  };
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -46,20 +52,20 @@ export default function PublicHeader() {
     <>
       <header className="sticky top-0 z-50 border-b border-[#1f2925]/8 bg-[#f5f0e8]/90 backdrop-blur-xl">
         <div className="mx-auto flex h-[76px] max-w-[1440px] items-center justify-between px-5 sm:px-8 lg:px-12 xl:px-20">
-          <Link href={ROUTES.HOME} aria-label="Accueil">
+          <Link href={ROUTES.HOME} aria-label="Accueil" onClick={scrollToPageTop}>
             <Brand />
           </Link>
           <nav className="hidden items-center gap-8 md:flex" aria-label="Navigation principale">
-            <Link href={ROUTES.FEATURES} className="text-sm font-medium text-[#5f6863] transition hover:text-[#1f2925]">
+            <Link href={ROUTES.FEATURES} className="text-sm font-medium text-[#5f6863] transition hover:text-[#1f2925]" onClick={scrollToPageTop}>
               Fonctionnalités
             </Link>
-            <Link href={ROUTES.PRICING} className="text-sm font-medium text-[#5f6863] transition hover:text-[#1f2925]">
+            <Link href={ROUTES.PRICING} className="text-sm font-medium text-[#5f6863] transition hover:text-[#1f2925]" onClick={scrollToPageTop}>
               Tarifs
             </Link>
-            <Link href={ROUTES.LOGIN} className="text-sm font-medium text-[#5f6863] transition hover:text-[#1f2925]">
+            <Link href={ROUTES.LOGIN} className="text-sm font-medium text-[#5f6863] transition hover:text-[#1f2925]" onClick={scrollToPageTop}>
               Se connecter
             </Link>
-            <Link href={ROUTES.REGISTER} className="rounded-full bg-[#1f2925] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#324139]">
+            <Link href={ROUTES.REGISTER} className="rounded-full bg-[#1f2925] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#324139]" onClick={scrollToPageTop}>
               Créer mon livret
             </Link>
           </nav>
@@ -101,7 +107,7 @@ export default function PublicHeader() {
           <div className="pointer-events-none absolute -right-10 -top-10 h-44 w-44 rounded-full border border-[#1f2925]/6" />
 
           <div className="relative flex h-[76px] shrink-0 items-center justify-between border-b border-[#1f2925]/8 px-5">
-            <Link href={ROUTES.HOME} aria-label="Accueil" onClick={() => setMobileMenuOpen(false)}>
+            <Link href={ROUTES.HOME} aria-label="Accueil" onClick={handleMobileNavigation}>
               <Brand />
             </Link>
             <button
@@ -122,7 +128,7 @@ export default function PublicHeader() {
                   key={href}
                   href={href}
                   className="menu-link group flex items-center justify-between py-4"
-                  onClick={() => setMobileMenuOpen(false)}
+                  onClick={handleMobileNavigation}
                 >
                   <span className="flex items-baseline gap-3">
                     <span className="font-serif text-[11px] italic text-[#e9a16f]/65">0{index + 1}</span>
@@ -143,7 +149,7 @@ export default function PublicHeader() {
             <Link
               href={ROUTES.REGISTER}
               className="group flex h-12 items-center justify-between rounded-full bg-[#d96c4a] px-5 text-sm font-semibold text-white transition hover:bg-[#c85f40]"
-              onClick={() => setMobileMenuOpen(false)}
+              onClick={handleMobileNavigation}
             >
               Créer mon livret
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15 transition group-hover:translate-x-1">

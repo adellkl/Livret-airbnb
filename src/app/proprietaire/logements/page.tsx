@@ -11,8 +11,10 @@ import { ROUTES } from '@/config/routes';
 import {
   type OwnerProperty,
 } from '@/lib/owner-properties';
-import { createClient } from '@/lib/supabase/client';
+import { firebaseAuth, firestore } from '@/lib/firebase/client';
 import { toOwnerProperty } from '@/lib/property-mappers';
+import { collection, doc, getDoc, onSnapshot, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import {
   ArrowRight,
   BedDouble,
@@ -40,27 +42,63 @@ export default function PropertiesPage() {
 
   useEffect(() => {
     let active = true;
-    const load = async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('properties')
-        .select('*')
-        .order('updated_at', { ascending: false });
-
-      if (!active) return;
-      if (error) {
-        setLoadError('Impossible de charger vos logements. Réessayez dans un instant.');
+    let unsubscribeProperties: (() => void) | undefined;
+    const unsubscribeAuth = onAuthStateChanged(firebaseAuth, (user) => {
+      if (!user) {
+        setLoadError('Votre session a expiré. Reconnectez-vous pour voir vos logements.');
         return;
       }
-      setProperties((data ?? []).map((item) => toOwnerProperty(item as Record<string, unknown>)));
+      const propertiesQuery = query(
+        collection(firestore, 'properties'),
+        where('ownerId', '==', user.uid),
+      );
+      unsubscribeProperties?.();
+      unsubscribeProperties = onSnapshot(propertiesQuery, (snapshot) => {
+        if (active) {
+          const sortedProperties = [...snapshot.docs]
+            .sort((first, second) => {
+              const firstUpdatedAt = first.data().updatedAt?.toMillis?.() ?? 0;
+              const secondUpdatedAt = second.data().updatedAt?.toMillis?.() ?? 0;
+              return secondUpdatedAt - firstUpdatedAt;
+            })
+            .map((item) => toOwnerProperty({ id: item.id, ...item.data() }));
+          setProperties(sortedProperties);
+
+          void (async () => {
+            const guideChecks = await Promise.all(snapshot.docs.map(async (propertyDocument) => ({
+              propertyDocument,
+              guide: await getDoc(doc(firestore, 'public_guides', propertyDocument.id)),
+            })));
+            const missingGuides = guideChecks.filter(({ guide }) => !guide.exists());
+            if (!missingGuides.length) return;
+
+            const batch = writeBatch(firestore);
+            missingGuides.forEach(({ propertyDocument }) => {
+              const propertyData = propertyDocument.data();
+              batch.set(doc(firestore, 'public_guides', propertyDocument.id), {
+                ...propertyData,
+                propertyId: propertyDocument.id,
+                publishedAt: propertyData.publishedAt ?? serverTimestamp(),
+              });
+            });
+            await batch.commit();
+          })().catch(() => {
+            if (active) setLoadError('Impossible de générer les liens de vos logements. Réessayez dans un instant.');
+          });
+        }
+      }, () => {
+        if (active) setLoadError('Impossible de charger vos logements. Réessayez dans un instant.');
+      });
+    });
+    const load = () => {
       const createdName = window.sessionStorage.getItem('livret-property-created');
       if (createdName) {
         setCreatedPropertyName(createdName);
         window.sessionStorage.removeItem('livret-property-created');
       }
     };
-    void load();
-    return () => { active = false; };
+    load();
+    return () => { active = false; unsubscribeProperties?.(); unsubscribeAuth(); };
   }, []);
 
   const filteredProperties = useMemo(() => {
@@ -212,8 +250,8 @@ export default function PropertiesPage() {
 
             {filteredProperties.length > 0 ? (
               <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                {filteredProperties.map((property) => (
-                  <PropertyCard key={property.id} property={property} />
+                {filteredProperties.map((property, index) => (
+                  <PropertyCard key={property.id} property={property} priority={index === 0} />
                 ))}
               </div>
             ) : (
@@ -285,7 +323,7 @@ function PortfolioStat({
   );
 }
 
-function PropertyCard({ property }: { property: OwnerProperty }) {
+function PropertyCard({ property, priority = false }: { property: OwnerProperty; priority?: boolean }) {
   return (
     <article className="overflow-hidden rounded-[1.7rem] border border-[#e4ddd6] bg-white shadow-[0_12px_35px_rgba(32,28,24,0.05)]">
       <div className="relative h-48 overflow-hidden bg-[#ece7e1]">
@@ -294,6 +332,7 @@ function PropertyCard({ property }: { property: OwnerProperty }) {
           alt={property.name}
           fill
           unoptimized
+          priority={priority}
           sizes="(max-width: 768px) 100vw, 420px"
           className="object-cover"
         />
@@ -350,13 +389,23 @@ function PropertyCard({ property }: { property: OwnerProperty }) {
               {property.views} consultation{property.views > 1 ? 's' : ''}
             </p>
           </div>
-          <Link
-            href={ROUTES.OWNER_PROPERTY_DETAIL(property.id)}
-            className="flex h-10 items-center gap-2 rounded-xl bg-[#17232c] px-4 text-xs font-semibold text-white"
-          >
-            Gérer
-            <ArrowRight size={15} />
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href={property.status === 'published' ? ROUTES.PUBLIC_BOOKLET(property.id) : `${ROUTES.PUBLIC_BOOKLET(property.id)}?preview=1`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex h-10 items-center rounded-xl border border-[#d8d1ca] px-3 text-xs font-semibold text-[#37403d]"
+            >
+              {property.status === 'published' ? 'Voir le livret' : 'Aperçu du livret'}
+            </Link>
+            <Link
+              href={ROUTES.OWNER_PROPERTY_DETAIL(property.id)}
+              className="flex h-10 items-center gap-2 rounded-xl bg-[#17232c] px-4 text-xs font-semibold text-white"
+            >
+              Gérer
+              <ArrowRight size={15} />
+            </Link>
+          </div>
         </div>
       </div>
     </article>

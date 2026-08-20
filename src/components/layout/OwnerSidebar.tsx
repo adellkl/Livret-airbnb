@@ -18,34 +18,38 @@ import {
   Crown
 } from 'lucide-react';
 import BrandMark from '@/components/layout/BrandMark';
-import { createClient } from '@/lib/supabase/client';
+import { firebaseAuth, firestore } from '@/lib/firebase/client';
+import { doc, getDoc } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
+import { useSubscription } from '@/hooks/useSubscription';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Tableau de bord', href: ROUTES.OWNER_DASHBOARD },
   { icon: Home, label: 'Logements', href: ROUTES.OWNER_PROPERTIES },
-  { icon: BookOpen, label: 'Livrets', href: ROUTES.OWNER_PROPERTIES },
-  { icon: Calendar, label: 'Réservations', href: ROUTES.OWNER_DASHBOARD },
-  { icon: BarChart3, label: 'Statistiques', href: ROUTES.OWNER_STATISTICS },
+  { icon: BookOpen, label: 'Livrets', href: ROUTES.OWNER_BOOKLETS },
+  { icon: Calendar, label: 'Réservations', href: ROUTES.OWNER_RESERVATIONS },
+  { icon: BarChart3, label: 'Statistiques', href: ROUTES.OWNER_STATISTICS, proOnly: true },
   { icon: Users, label: 'Voyageurs', href: ROUTES.OWNER_TRAVELERS },
-  { icon: Puzzle, label: 'Intégrations', href: ROUTES.OWNER_DASHBOARD },
+  { icon: Puzzle, label: 'Intégrations', href: ROUTES.OWNER_INTEGRATIONS, proOnly: true },
   { icon: Settings, label: 'Réglages', href: ROUTES.OWNER_SETTINGS },
 ];
 
 export default function OwnerSidebar() {
   const pathname = usePathname();
   const [profileName, setProfileName] = useState('Mon compte');
+  const { isPaid, plan } = useSubscription();
 
   useEffect(() => {
     let active = true;
     const loadProfile = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = firebaseAuth.currentUser;
       if (!user) return;
-      const { data } = await supabase.from('profiles').select('full_name, organization_name').eq('id', user.id).maybeSingle();
-      if (active) setProfileName(data?.organization_name || data?.full_name || user.email || 'Mon compte');
+      const profile = await getDoc(doc(firestore, 'profiles', user.uid));
+      const data = profile.data();
+      if (active) setProfileName(data?.organizationName || data?.fullName || user.email || 'Mon compte');
     };
-    void loadProfile();
-    return () => { active = false; };
+    const unsubscribe = onAuthStateChanged(firebaseAuth, () => { void loadProfile(); });
+    return () => { active = false; unsubscribe(); };
   }, []);
 
   return (
@@ -58,8 +62,11 @@ export default function OwnerSidebar() {
       </div>
 
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {menuItems.map((item) => {
-          const isActive = pathname === item.href;
+        {menuItems.filter((item) => !item.proOnly || isPaid).map((item) => {
+          const isActive =
+            pathname === item.href ||
+            (item.href === ROUTES.OWNER_PROPERTIES && pathname.startsWith(`${ROUTES.OWNER_PROPERTIES}/`)) ||
+            (item.href === ROUTES.OWNER_BOOKLETS && pathname.startsWith(`${ROUTES.OWNER_BOOKLETS}/`));
           return (
             <Link
               key={item.label}
@@ -77,31 +84,16 @@ export default function OwnerSidebar() {
       </nav>
 
       <div className="p-4 space-y-4">
-        <div className="bg-sidebar-accent rounded-lg p-4">
-          <div className="flex items-start space-x-3">
-            <div className="p-2 bg-primary/20 rounded-lg">
-              <Crown size={20} className="text-primary" />
-            </div>
-            <div className="flex-1">
-              <h4 className="text-sm font-semibold mb-1">Passez à la version Pro</h4>
-              <p className="text-xs text-sidebar-foreground/60 mb-3">Débloquez des fonctionnalités avancées</p>
-              <button className="w-full px-3 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-medium rounded-lg transition-colors">
-                Découvrir nos offres
-              </button>
-            </div>
-          </div>
-        </div>
-
         <Link href="#" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-hover hover:text-sidebar-foreground transition-colors">
           <HelpCircle size={20} />
           <span className="text-sm font-medium">Besoin d&apos;aide ?</span>
         </Link>
 
         <div className="border-t border-sidebar-border pt-4">
-          <div className="flex items-center justify-between px-4 py-2">
-            <div>
-              <p className="max-w-36 truncate text-sm font-medium">{profileName}</p>
-              <p className="text-xs text-sidebar-foreground/60">Propriétaire</p>
+          <div className="flex items-center justify-between gap-2 px-4 py-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2"><p className="max-w-28 truncate text-sm font-medium">{profileName}</p><span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[.1em] ${isPaid ? 'border-[#8cc9b8]/25 bg-[#367566]/20 text-[#9ed6c7]' : 'border-white/15 bg-white/8 text-white/60'}`}>{isPaid && <Crown size={10} />}{isPaid ? (plan === 'business' ? 'Business' : 'Pro') : 'Gratuit'}</span></div>
+              <p className="text-xs text-sidebar-foreground/60">{isPaid ? 'Propriétaire' : '1 logement inclus'}</p>
             </div>
             <ChevronRight size={16} className="text-sidebar-foreground/60" />
           </div>

@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bell, User, ChevronDown, LogOut, Building2, X } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { firebaseAuth, firestore } from '@/lib/firebase/client';
+import { doc, getDoc } from 'firebase/firestore';
+import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { ROUTES } from '@/config/routes';
 
 interface DashboardHeaderProps {
@@ -23,15 +25,15 @@ export default function DashboardHeader({ title, subtitle }: DashboardHeaderProp
   useEffect(() => {
     let active = true;
     const loadProfile = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = firebaseAuth.currentUser;
       if (!user) return;
       if (active) setEmail(user.email ?? '');
-      const { data } = await supabase.from('profiles').select('full_name, organization_name').eq('id', user.id).maybeSingle();
-      if (active) setProfileName(data?.organization_name || data?.full_name || user.email || 'Mon compte');
+      const profile = await getDoc(doc(firestore, 'profiles', user.uid));
+      const data = profile.data();
+      if (active) setProfileName(data?.organizationName || data?.fullName || user.email || 'Mon compte');
     };
-    void loadProfile();
-    return () => { active = false; };
+    const unsubscribe = onAuthStateChanged(firebaseAuth, () => { void loadProfile(); });
+    return () => { active = false; unsubscribe(); };
   }, []);
 
   useEffect(() => {
@@ -57,7 +59,7 @@ export default function DashboardHeader({ title, subtitle }: DashboardHeaderProp
 
   const signOut = async () => {
     setIsSigningOut(true);
-    await createClient().auth.signOut({ scope: 'local' });
+    await firebaseSignOut(firebaseAuth);
     router.replace(ROUTES.LOGIN);
     router.refresh();
   };

@@ -17,8 +17,11 @@ export const ROUTES = {
   OWNER_PROPERTY_DETAIL: (id: string) => `/proprietaire/logements/${id}`,
   OWNER_PROPERTY_SHARE: (id: string) => `/proprietaire/logements/${id}/partage`,
   OWNER_BOOKLET_EDITOR: (id: string) => `/proprietaire/livrets/${id}/editeur`,
+  OWNER_BOOKLETS: '/proprietaire/livrets',
+  OWNER_RESERVATIONS: '/proprietaire/reservations',
   OWNER_STATISTICS: '/proprietaire/statistiques',
   OWNER_TRAVELERS: '/proprietaire/voyageurs',
+  OWNER_INTEGRATIONS: '/proprietaire/integrations',
   OWNER_TEAM: '/proprietaire/equipe',
   OWNER_SETTINGS: '/proprietaire/parametres',
 

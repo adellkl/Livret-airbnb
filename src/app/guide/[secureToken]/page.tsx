@@ -32,9 +32,10 @@ import {
 } from 'lucide-react';
 import {
   DEFAULT_OWNER_PROPERTIES,
-  loadOwnerProperties,
   type OwnerProperty,
 } from '@/lib/owner-properties';
+import { firestore } from '@/lib/firebase/client';
+import { addDoc, collection, doc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 type CityVisual = {
   image: string;
@@ -149,95 +150,7 @@ const equipmentCards = [
   },
 ];
 
-const nearbyFilters = [
-  'Tout',
-  'Restaurants',
-  'Cafés',
-  'Balades',
-  'Culture',
-] as const;
-
-type NearbyFilter = (typeof nearbyFilters)[number];
-
-const nearbyPlaces = [
-  {
-    name: 'Le Tout-Paris',
-    category: 'Cuisine française',
-    filter: 'Restaurants' as const,
-    distance: '6 min à pied',
-    rating: '4,8',
-    image:
-      'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=900&h=700&fit=crop',
-  },
-  {
-    name: 'Dose Batignolles',
-    category: 'Café & brunch',
-    filter: 'Cafés' as const,
-    distance: '4 min à pied',
-    rating: '4,7',
-    image:
-      'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=900&h=700&fit=crop',
-  },
-  {
-    name: 'Parc Monceau',
-    category: 'Balade',
-    filter: 'Balades' as const,
-    distance: '12 min à pied',
-    rating: '4,9',
-    image:
-      'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=900&h=700&fit=crop',
-  },
-  {
-    name: 'Marché des Batignolles',
-    category: 'Marché couvert',
-    filter: 'Restaurants' as const,
-    distance: '8 min à pied',
-    rating: '4,6',
-    image:
-      'https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=900&h=700&fit=crop',
-  },
-  {
-    name: 'Le Comptoir',
-    category: 'Bar à vins',
-    filter: 'Restaurants' as const,
-    distance: '5 min à pied',
-    rating: '4,7',
-    image:
-      'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=900&h=700&fit=crop',
-  },
-  {
-    name: 'Musée de la Vie Romantique',
-    category: 'Culture',
-    filter: 'Culture' as const,
-    distance: '16 min à pied',
-    rating: '4,8',
-    image:
-      'https://images.unsplash.com/photo-1561214115-f2f134cc4912?w=900&h=700&fit=crop',
-  },
-];
-
-const faqs = [
-  {
-    question: 'Où trouver le code d’accès ?',
-    answer:
-      'Le code 4567# ouvre la porte de l’immeuble. La boîte à clés se trouve à gauche de la porte de l’appartement.',
-  },
-  {
-    question: 'Que faire si la porte ne s’ouvre pas ?',
-    answer:
-      'Vérifiez que la poignée est bien relevée, puis composez à nouveau le code. Marie reste joignable si besoin.',
-  },
-  {
-    question: 'Y a-t-il un parking à proximité ?',
-    answer:
-      'Oui, le parking public Villiers se trouve à 7 minutes à pied, au 14 avenue de Villiers.',
-  },
-  {
-    question: 'Puis-je déposer mes bagages plus tôt ?',
-    answer:
-      'Un dépôt est possible à partir de 12 h sur demande, selon l’avancement du ménage.',
-  },
-];
+type NearbyFilter = string;
 
 const checkoutTasks = [
   'Fermer toutes les fenêtres',
@@ -252,6 +165,8 @@ export default function PublicBookletPage() {
   const [property, setProperty] = useState<OwnerProperty>(
     DEFAULT_OWNER_PROPERTIES[0]
   );
+  const [ownerId, setOwnerId] = useState('');
+  const [guideState, setGuideState] = useState<'loading' | 'ready' | 'missing'>('loading');
   const [copied, setCopied] = useState<'network' | 'password' | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [checkedTasks, setCheckedTasks] = useState<number[]>([]);
@@ -270,28 +185,86 @@ export default function PublicBookletPage() {
   const heroFocusRef = useRef<HTMLDivElement>(null);
   const heroFooterRef = useRef<HTMLDivElement>(null);
   const equipmentGuideOpen = selectedEquipment !== null;
+  const propertyNearbyPlaces = (property.nearbyPlaces ?? []).map((place, index) => ({
+    ...place,
+    filter: place.category || 'Autre',
+    distance: place.address || 'Adresse recommandée',
+    rating: place.note || '★',
+    image: property.gallery?.[index]?.url || getCityVisual(property).image,
+  }));
+  const guideNearbyFilters = ['Tout', ...Array.from(new Set(propertyNearbyPlaces.map((place) => place.filter)))];
   const visibleNearbyPlaces =
     nearbyFilter === 'Tout'
-      ? nearbyPlaces
-      : nearbyPlaces.filter((place) => place.filter === nearbyFilter);
+      ? propertyNearbyPlaces
+      : propertyNearbyPlaces.filter((place) => place.filter === nearbyFilter);
   const cityVisual = getCityVisual(property);
   const hostFirstName = property.hostName.split(' ')[0] || property.hostName;
+  const guideFaqs = property.faqItems?.length
+    ? property.faqItems.map((question) => ({ question, answer: `Pour cette information, contactez ${hostFirstName || 'votre hôte'} si besoin.` }))
+    : [];
   const compactPhone = property.hostPhone.replace(/\s/g, '');
   const whatsappPhone = property.hostPhone.replace(/\D/g, '');
   const fullAddress = `${property.address}, ${property.postalCode} ${property.city}`;
   const encodedAddress = encodeURIComponent(fullAddress);
+  const themeAccent =
+    property.theme === 'ocean'
+      ? '#287a9e'
+      : property.theme === 'sage'
+        ? '#367566'
+        : property.accentColor || '#d9694d';
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      const matchingProperty = loadOwnerProperties().find(
-        (item) => item.id === params.secureToken
-      );
-
-      if (matchingProperty) setProperty(matchingProperty);
-    });
-
-    return () => window.cancelAnimationFrame(frame);
+    let active = true;
+    const loadGuide = async () => {
+      try {
+        const guide = await getDoc(doc(firestore, 'public_guides', params.secureToken));
+        if (!active) return;
+        const isOwnerPreview = new URLSearchParams(window.location.search).get('preview') === '1';
+        if (!guide.exists() || (guide.data().status !== 'published' && !isOwnerPreview)) {
+          setGuideState('missing');
+          return;
+        }
+      const data = guide.data();
+      setOwnerId(String(data.ownerId ?? ''));
+      setProperty({
+        ...DEFAULT_OWNER_PROPERTIES[0],
+        id: guide.id,
+        name: String(data.name ?? ''), type: String(data.type ?? ''), address: String(data.address ?? ''),
+        city: String(data.city ?? ''), postalCode: String(data.postalCode ?? ''), capacity: Number(data.capacity ?? 0),
+        checkIn: String(data.checkIn ?? ''), checkOut: String(data.checkOut ?? ''), wifiName: String(data.wifiName ?? ''),
+        wifiPassword: String(data.wifiPassword ?? ''), description: String(data.description ?? ''),
+        hostName: String(data.hostName ?? ''), hostPhone: String(data.hostPhone ?? ''), hostEmail: String(data.hostEmail ?? ''),
+        coverImage: String(data.coverImage ?? ''), arrivalInstructions: String(data.arrivalInstructions ?? ''),
+        accessCode: String(data.accessCode ?? ''), parkingInstructions: String(data.parkingInstructions ?? ''),
+        departureInstructions: String(data.departureInstructions ?? ''), welcomeTitle: String(data.welcomeTitle ?? ''), accentColor: String(data.accentColor ?? '#d85b24'),
+        amenities: Array.isArray(data.amenities) ? data.amenities.map(String) : [],
+        houseRules: Array.isArray(data.houseRules) ? data.houseRules.map(String) : [],
+        faqItems: Array.isArray(data.faqItems) ? data.faqItems.map(String) : [],
+        nearbyPlaces: Array.isArray(data.nearbyPlaces) ? data.nearbyPlaces.map((place) => ({ name: String(place?.name ?? ''), category: String(place?.category ?? ''), address: String(place?.address ?? ''), note: String(place?.note ?? '') })) : [],
+        gallery: Array.isArray(data.gallery) ? data.gallery.map((photo) => ({ url: String(photo?.url ?? ''), caption: String(photo?.caption ?? '') })).filter((photo) => photo.url) : [],
+        welcomeSubtitle: String(data.welcomeSubtitle ?? ''),
+        hostMessage: String(data.hostMessage ?? ''),
+        theme: data.theme === 'ocean' || data.theme === 'sage' ? data.theme : 'terra',
+        language: data.language === 'en' ? 'en' : 'fr',
+        showWifi: data.showWifi !== false,
+        showMap: data.showMap !== false,
+        showFaq: data.showFaq !== false,
+        showGallery: data.showGallery !== false,
+      });
+      setGuideState('ready');
+      } catch {
+        if (active) setGuideState('missing');
+      }
+    };
+    void loadGuide();
+    return () => { active = false; };
   }, [params.secureToken]);
+
+  useEffect(() => {
+    if (!ownerId || !params.secureToken) return;
+    const eventType = new URLSearchParams(window.location.search).get('source') === 'qr' ? 'qr_scan' : 'view';
+    void addDoc(collection(firestore, 'guide_events'), { propertyId: property.id, ownerId, eventType, occurredAt: serverTimestamp() }).catch(() => undefined);
+  }, [ownerId, params.secureToken, property.id]);
 
   useEffect(() => {
     let active = true;
@@ -444,6 +417,14 @@ export default function PublicBookletPage() {
     setNearbyFilter(filter);
   };
 
+  if (guideState === 'missing') {
+    return <main className="flex min-h-screen items-center justify-center bg-[#f3eee8] px-6 text-center text-[#142c3f]"><div className="max-w-md rounded-[2rem] bg-white p-8 shadow-[0_20px_60px_rgba(20,44,63,.12)]"><Home className="mx-auto h-10 w-10 text-[#d9694d]" /><h1 className="mt-5 font-serif text-3xl font-semibold">Guide indisponible</h1><p className="mt-3 text-sm leading-6 text-[#66747a]">Ce lien n’existe pas, ou le guide de ce logement n’est pas encore publié.</p></div></main>;
+  }
+
+  if (guideState === 'loading') {
+    return <main className="flex min-h-screen items-center justify-center bg-[#f3eee8] text-sm font-medium text-[#66747a]">Chargement de votre guide…</main>;
+  }
+
   return (
     <div className="min-h-screen bg-[#f3eee8] text-[#142c3f]">
       <div className="hidden min-h-screen items-center justify-center px-8 py-12 sm:flex">
@@ -570,8 +551,8 @@ export default function PublicBookletPage() {
                         : 'border-white/12 bg-white/10 text-white hover:bg-white/16'
                     }`}
                   >
-                    <span aria-hidden="true">🇫🇷</span>
-                    FR
+                    <span aria-hidden="true">{property.language === 'en' ? '🇬🇧' : '🇫🇷'}</span>
+                    {property.language === 'en' ? 'EN' : 'FR'}
                     <ChevronDown
                       size={13}
                       className={headerScrolled ? 'text-[#6e777b]' : 'text-white/60'}
@@ -609,14 +590,14 @@ export default function PublicBookletPage() {
                 </p>
                 <h1 className="mt-2 max-w-[470px] font-serif font-semibold leading-[0.88] tracking-[-0.055em] drop-shadow-[0_8px_28px_rgba(0,0,0,.35)]">
                   <span className="block text-[clamp(2.75rem,11vw,4.4rem)] text-white">
-                    Bienvenue à
+                    {property.welcomeTitle || 'Bienvenue à'}
                   </span>
                   <span className="mt-1 block bg-gradient-to-r from-[#fff4ee] via-[#ffd0b8] to-[#ed9876] bg-clip-text pb-2 text-[clamp(3.35rem,14vw,5.35rem)] italic text-transparent">
                     {property.city}.
                   </span>
                 </h1>
                 <p className="mt-2 max-w-[390px] text-[clamp(.85rem,3.5vw,1rem)] leading-relaxed text-white/76 drop-shadow-md">
-                  {property.description}
+                  {property.welcomeSubtitle || property.description}
                 </p>
               </div>
 
@@ -648,6 +629,16 @@ export default function PublicBookletPage() {
             </div>
           </section>
 
+          {property.hostMessage && (
+            <section className="px-5 pt-7">
+              <div className="rounded-[1.7rem] border border-[#142c3f]/10 bg-white p-5 shadow-[0_12px_34px_rgba(20,44,63,.05)]" style={{ borderLeftColor: themeAccent, borderLeftWidth: 5 }}>
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: themeAccent }}>Un mot de votre hôte</p>
+                <p className="mt-3 text-sm leading-6 text-[#52636b]">{property.hostMessage}</p>
+              </div>
+            </section>
+          )}
+
+          {property.showWifi !== false && (
           <section className="px-5 py-7">
             <div className="overflow-hidden rounded-[2rem] border border-[#b9d1c9] bg-[#e9f2ef] p-5 shadow-[0_18px_45px_rgba(53,103,91,0.1)]">
               <div className="mb-5 flex items-center gap-4">
@@ -705,6 +696,7 @@ export default function PublicBookletPage() {
               </p>
             </div>
           </section>
+          )}
 
           <section className="px-5 py-7">
             <div className="mb-5">
@@ -723,7 +715,7 @@ export default function PublicBookletPage() {
                     Arrivée
                   </p>
                   <p className="mt-2 whitespace-nowrap text-[clamp(0.95rem,4.8vw,1.5rem)] font-semibold leading-none tracking-[-0.025em]">
-                    À partir de 15 h
+                    À partir de {property.checkIn || '15:00'}
                   </p>
                   <p className="mt-2 whitespace-nowrap text-[10px] text-[#7b858b] min-[390px]:text-xs">
                     Accès autonome
@@ -734,7 +726,7 @@ export default function PublicBookletPage() {
                     Départ
                   </p>
                   <p className="mt-2 whitespace-nowrap text-[clamp(0.95rem,4.8vw,1.5rem)] font-semibold leading-none tracking-[-0.025em]">
-                    Avant 11 h
+                    Avant {property.checkOut || '11:00'}
                   </p>
                   <p className="mt-2 whitespace-nowrap text-[10px] text-[#7b858b] min-[390px]:text-xs">
                     5 étapes simples
@@ -748,9 +740,9 @@ export default function PublicBookletPage() {
                 </h3>
                 <div className="mt-5 space-y-4">
                   {[
-                    ['01', 'Entrée de l’immeuble', 'Composez le code 4567#'],
-                    ['02', 'Montez au 3e étage', 'Porte au fond du couloir'],
-                    ['03', 'Récupérez les clés', 'Boîte à gauche de la porte'],
+                    ['01', 'Instructions d’arrivée', property.arrivalInstructions || 'Les instructions seront communiquées par votre hôte.'],
+                    ['02', 'Accès au logement', property.accessCode || 'Accès à confirmer avec votre hôte.'],
+                    ['03', 'Départ', property.departureInstructions || 'Merci de respecter les consignes de départ.'],
                   ].map(([number, title, description], index) => (
                     <div key={number} className="relative flex gap-4">
                       {index < 2 && (
@@ -792,6 +784,7 @@ export default function PublicBookletPage() {
             </div>
           </section>
 
+          {property.showMap !== false && (
           <section className="px-5 py-5">
             <div className="relative overflow-hidden rounded-[1.5rem] border border-[#142c3f]/9 bg-[#e8edf0] shadow-[0_12px_32px_rgba(20,44,63,0.07)]">
               <div className="relative h-[220px]">
@@ -826,6 +819,7 @@ export default function PublicBookletPage() {
               </div>
             </div>
           </section>
+          )}
 
           <section className="py-7">
             <div className="mb-5 px-5">
@@ -1040,6 +1034,7 @@ export default function PublicBookletPage() {
             </section>
           )}
 
+          {property.showFaq !== false && guideFaqs.length > 0 && (
           <section className="px-5 py-7">
             <div className="mb-5 flex items-end justify-between gap-4">
               <div>
@@ -1049,7 +1044,7 @@ export default function PublicBookletPage() {
                 </h2>
               </div>
               <a
-                href="https://wa.me/33612345678"
+                href={`https://wa.me/${whatsappPhone}`}
                 target="_blank"
                 rel="noreferrer"
                 className="mb-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e9f2ef] text-[#367566]"
@@ -1059,7 +1054,7 @@ export default function PublicBookletPage() {
               </a>
             </div>
             <div className="overflow-hidden rounded-[1.75rem] border border-[#142c3f]/9 bg-white shadow-[0_12px_34px_rgba(20,44,63,0.05)]">
-              {faqs.map((faq, index) => {
+              {guideFaqs.map((faq, index) => {
                 const isOpen = openFaq === index;
                 return (
                   <div
@@ -1111,6 +1106,22 @@ export default function PublicBookletPage() {
               })}
             </div>
           </section>
+          )}
+
+          {property.showGallery !== false && property.gallery?.length ? (
+            <section className="px-5 py-8">
+              <p className="text-sm font-medium text-[#8b8f90]">Le logement en images</p>
+              <h2 className="mt-1 text-3xl font-semibold tracking-[-0.035em]">Découvrez les espaces</h2>
+              <div className="guest-scrollbar mt-5 flex snap-x gap-4 overflow-x-auto pb-2">
+                {property.gallery.map((photo, index) => (
+                  <figure key={`${photo.url}-${index}`} className="w-72 shrink-0 snap-start overflow-hidden rounded-[1.75rem] bg-[#f3eee8]">
+                    <div className="relative aspect-[4/3]"><Image src={photo.url} alt={photo.caption || `Photo ${index + 1} du logement`} fill unoptimized sizes="288px" className="object-cover" /></div>
+                    {photo.caption && <figcaption className="px-4 py-3 text-sm font-semibold text-[#142c3f]">{photo.caption}</figcaption>}
+                  </figure>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <section id="nearby" className="scroll-mt-24 overflow-hidden bg-white py-10 text-[#142c3f]">
             <div className="mb-5 px-5">
@@ -1129,7 +1140,7 @@ export default function PublicBookletPage() {
                 Des adresses choisies avec soin, toutes accessibles à pied.
               </p>
               <div className="guest-scrollbar mt-4 flex gap-2 overflow-x-auto">
-                {nearbyFilters.map(
+                {guideNearbyFilters.map(
                   (category) => (
                     <button
                       key={category}
@@ -1186,18 +1197,21 @@ export default function PublicBookletPage() {
                         <MapPin size={13} className="text-[#efad82]" />
                         {place.distance}
                       </p>
-                      <button
-                        type="button"
+                      <a
+                        href={`https://maps.google.com/?q=${encodeURIComponent(place.address || `${place.name} ${property.city}`)}`}
+                        target="_blank"
+                        rel="noreferrer"
                         className="flex h-10 items-center gap-2 rounded-full border border-white/14 bg-white/10 px-4 text-xs font-semibold text-white backdrop-blur transition hover:bg-white hover:text-[#102a3d]"
                       >
                         Itinéraire
                         <ExternalLink size={13} />
-                      </button>
+                      </a>
                     </div>
                   </div>
                 </article>
               ))}
             </div>
+            {!propertyNearbyPlaces.length && <p className="px-5 pb-7 text-sm text-[#6f7c84]">Aucune bonne adresse n’a encore été ajoutée pour ce logement.</p>}
           </section>
 
           <section className="px-5 py-8">
