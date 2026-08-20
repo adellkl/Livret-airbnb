@@ -1321,7 +1321,7 @@ export default function PublicBookletPage() {
             aria-label={`Guide ${selectedEquipment.title}`}
             className={`fixed inset-0 z-[70] mx-auto flex max-w-[560px] flex-col overflow-hidden overscroll-none bg-[#f4f1ed] ${isClosingEquipment ? 'guest-equipment-leave' : 'guest-equipment-enter'}`}
           >
-            <div className="relative h-[36vh] min-h-[300px] shrink-0 overflow-hidden bg-[#e8e3dd]">
+            <div className="relative h-[30vh] min-h-[250px] shrink-0 overflow-hidden bg-[#e8e3dd]">
               <Image
                 src={selectedEquipment.image}
                 alt={selectedEquipment.title}
