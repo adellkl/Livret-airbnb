@@ -35,6 +35,7 @@ export function toOwnerProperty(property: DatabaseProperty): OwnerProperty {
     wifiPassword: String(property.wifiPassword ?? property.wifi_password ?? ''),
     description: String(property.description ?? ''),
     hostName: String(property.hostName ?? property.host_name ?? ''),
+    hostAvatarUrl: String(property.hostAvatarUrl ?? property.host_avatar_url ?? ''),
     hostPhone: String(property.hostPhone ?? property.host_phone ?? ''),
     hostEmail: String(property.hostEmail ?? property.host_email ?? ''),
     coverImage: String(property.coverImage ?? property.cover_image_url ?? ''),

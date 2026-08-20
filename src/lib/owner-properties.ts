@@ -15,6 +15,7 @@ export interface OwnerProperty {
   wifiPassword: string;
   description: string;
   hostName: string;
+  hostAvatarUrl?: string;
   hostPhone: string;
   hostEmail: string;
   coverImage: string;

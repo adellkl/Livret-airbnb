@@ -471,6 +471,7 @@ export default function NewPropertyPage() {
         wifiPassword: property.wifiPassword,
         description: property.description.trim(),
         hostName: property.hostName.trim(),
+        hostAvatarUrl: String(profileSnapshot.data()?.avatarUrl ?? ''),
         hostPhone: property.hostPhone.trim(),
         hostEmail: property.hostEmail.trim().toLowerCase(),
         emergencyContact: property.emergencyContact?.trim() || '',

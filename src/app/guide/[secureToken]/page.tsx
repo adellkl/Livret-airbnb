@@ -202,6 +202,7 @@ export default function PublicBookletPage() {
       : propertyNearbyPlaces.filter((place) => place.filter === nearbyFilter);
   const cityVisual = getCityVisual(property);
   const heroImage = property.coverImage.trim() || property.gallery?.find((photo) => photo.url.trim())?.url.trim() || cityVisual.image;
+  const hostAvatar = property.hostAvatarUrl?.trim() || cityVisual.hostAvatar;
   const equipmentCards: EquipmentCard[] = (property.equipmentGuides ?? [])
     .filter((equipment) => equipment.name.trim() && equipment.imageUrl.trim())
     .map((equipment) => ({
@@ -247,7 +248,7 @@ export default function PublicBookletPage() {
         city: String(data.city ?? ''), postalCode: String(data.postalCode ?? ''), capacity: Number(data.capacity ?? 0),
         checkIn: String(data.checkIn ?? ''), checkOut: String(data.checkOut ?? ''), wifiName: String(data.wifiName ?? ''),
         wifiPassword: String(data.wifiPassword ?? ''), description: String(data.description ?? ''),
-        hostName: String(data.hostName ?? ''), hostPhone: String(data.hostPhone ?? ''), hostEmail: String(data.hostEmail ?? ''),
+        hostName: String(data.hostName ?? ''), hostAvatarUrl: String(data.hostAvatarUrl ?? ''), hostPhone: String(data.hostPhone ?? ''), hostEmail: String(data.hostEmail ?? ''),
         coverImage: String(data.coverImage ?? ''), arrivalInstructions: String(data.arrivalInstructions ?? ''),
         accessCode: String(data.accessCode ?? ''), parkingInstructions: String(data.parkingInstructions ?? ''),
         departureInstructions: String(data.departureInstructions ?? ''), welcomeTitle: String(data.welcomeTitle ?? ''), accentColor: String(data.accentColor ?? '#d85b24'),
@@ -592,7 +593,7 @@ export default function PublicBookletPage() {
                 <div className="guest-hero-avatar flex items-center gap-3 rounded-full border border-white/15 bg-black/18 py-1.5 pl-1.5 pr-4 backdrop-blur-lg">
                   <div className="relative h-11 w-11 overflow-hidden rounded-full border-2 border-white/75 bg-[#d8c8bc] shadow-lg">
                     <Image
-                      src={cityVisual.hostAvatar}
+                      src={hostAvatar}
                       alt={`Portrait de ${property.hostName}`}
                       fill
                       unoptimized
@@ -918,7 +919,7 @@ export default function PublicBookletPage() {
                 <div className="mt-6 flex items-center gap-4">
                   <div className="relative h-[82px] w-[82px] shrink-0 overflow-hidden rounded-full border-4 border-white bg-[#eaded8] shadow-sm">
                     <Image
-                      src={cityVisual.hostAvatar}
+                      src={hostAvatar}
                       alt={`Portrait de ${property.hostName}`}
                       fill
                       unoptimized

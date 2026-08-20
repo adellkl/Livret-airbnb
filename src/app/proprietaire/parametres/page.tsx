@@ -1,15 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
-import { Crown, LockKeyhole, Mail, Save, Settings2, Smartphone } from 'lucide-react';
+import { Camera, Crown, LockKeyhole, Mail, Save, Settings2, Smartphone } from 'lucide-react';
 import { onAuthStateChanged, sendPasswordResetEmail } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
 import OwnerPageShell from '@/components/owner/OwnerPageShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { firebaseAuth, firestore } from '@/lib/firebase/client';
+import { firebaseStorage } from '@/lib/firebase/client';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { ROUTES } from '@/config/routes';
 import { useSubscription } from '@/hooks/useSubscription';
 
@@ -20,11 +23,13 @@ export default function SettingsPage() {
   const [organization, setOrganization] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [accountEmail, setAccountEmail] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const { plan, isPaid, isLoading } = useSubscription();
 
   useEffect(() => {
@@ -36,6 +41,7 @@ export default function SettingsPage() {
       setOrganization(String(data?.organizationName ?? ''));
       setContactEmail(String(data?.contactEmail ?? user.email ?? ''));
       setPhone(String(data?.phone ?? ''));
+      setAvatarUrl(String(data?.avatarUrl ?? ''));
       setAccountEmail(user.email ?? '');
     });
     return stop;
@@ -73,6 +79,46 @@ export default function SettingsPage() {
     }
   };
 
+  const uploadAvatar = async (event: ChangeEvent<HTMLInputElement>) => {
+    const [file] = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (!file) return;
+    setMessage('');
+    setError('');
+    if (!file.type.startsWith('image/')) {
+      setError('Choisissez un fichier image (JPG, PNG ou WebP).');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('L’image est trop volumineuse. La taille maximale est de 10 Mo.');
+      return;
+    }
+    const user = firebaseAuth.currentUser;
+    if (!user) return;
+
+    setUploadingAvatar(true);
+    try {
+      const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-').toLowerCase();
+      const avatarRef = ref(firebaseStorage, `properties/${user.uid}/profile/${crypto.randomUUID()}-${safeFileName}`);
+      await uploadBytes(avatarRef, file, { contentType: file.type });
+      const nextAvatarUrl = await getDownloadURL(avatarRef);
+      const properties = await getDocs(query(collection(firestore, 'properties'), where('ownerId', '==', user.uid)));
+      const batch = writeBatch(firestore);
+      batch.update(doc(firestore, 'profiles', user.uid), { avatarUrl: nextAvatarUrl, updatedAt: serverTimestamp() });
+      properties.docs.forEach((propertyDocument) => {
+        batch.update(propertyDocument.ref, { hostAvatarUrl: nextAvatarUrl, updatedAt: serverTimestamp() });
+        batch.update(doc(firestore, 'public_guides', propertyDocument.id), { hostAvatarUrl: nextAvatarUrl, updatedAt: serverTimestamp() });
+      });
+      await batch.commit();
+      setAvatarUrl(nextAvatarUrl);
+      setMessage('Votre photo est enregistrée et affichée sur vos guides publiés.');
+    } catch {
+      setError('Impossible d’importer votre photo. Vérifiez votre connexion puis réessayez.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const resetPassword = async () => {
     const user = firebaseAuth.currentUser;
     if (!user?.email) return;
@@ -96,6 +142,14 @@ export default function SettingsPage() {
 
       <section className="max-w-2xl rounded-[2rem] border border-[#e4ddd6] bg-white p-6 sm:p-8">
         <Settings2 className="text-[#d85b24]" /><h2 className="mt-5 text-xl font-semibold">Profil propriétaire</h2><p className="mt-1 text-sm text-[#77736f]">Ces coordonnées sont utilisées pour votre compte et vos échanges avec les voyageurs.</p>
+        <div className="mt-6 flex items-center gap-4 rounded-2xl border border-[#eee8e2] bg-[#fcfaf8] p-4">
+          <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#f4e5df] text-[#d85b24]">
+            {avatarUrl ? <Image src={avatarUrl} alt="Votre photo de profil" fill unoptimized sizes="64px" className="object-cover" /> : <span className="text-xl font-semibold">{name.trim().slice(0, 1).toUpperCase() || 'P'}</span>}
+          </div>
+          <div className="min-w-0 flex-1"><p className="text-sm font-semibold text-[#2a3032]">Votre photo sur les guides</p><p className="mt-1 text-xs leading-5 text-[#77736f]">Elle sera visible par les voyageurs à côté de votre message d’accueil.</p></div>
+          <Label htmlFor="avatar" className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-xl bg-[#17232c] px-3 py-2.5 text-xs font-semibold text-white"><Camera size={15} />{uploadingAvatar ? 'Import…' : 'Ajouter'}</Label>
+          <Input id="avatar" type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={uploadAvatar} disabled={uploadingAvatar} className="sr-only" />
+        </div>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2"><Label htmlFor="name">Nom complet *</Label><Input id="name" value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" className="mt-2 h-11" required /></div>
           <div><Label htmlFor="organization">Établissement</Label><Input id="organization" value={organization} onChange={(event) => setOrganization(event.target.value)} autoComplete="organization" className="mt-2 h-11" /></div>
