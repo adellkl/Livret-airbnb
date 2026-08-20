@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import OwnerSidebar from '@/components/layout/OwnerSidebar';
@@ -12,8 +12,9 @@ import { ROUTES } from '@/config/routes';
 import {
   type OwnerProperty,
 } from '@/lib/owner-properties';
-import { firebaseAuth, firebaseAuthReady, firestore } from '@/lib/firebase/client';
+import { firebaseAuth, firebaseAuthReady, firebaseStorage, firestore } from '@/lib/firebase/client';
 import { collection, doc, getDoc, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import {
   ArrowLeft,
   ArrowRight,
@@ -31,6 +32,7 @@ import {
   Save,
   Sparkles,
   Trash2,
+  Upload,
   Utensils,
   UserRound,
   Users,
@@ -165,7 +167,10 @@ export default function NewPropertyPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
   const [isSearchingAddress, setIsSearchingAddress] = useState(false);
+  const [uploading, setUploading] = useState<'cover' | 'gallery' | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const progress = (currentStep / steps.length) * 100;
   const currentStepData = steps[currentStep - 1];
@@ -203,6 +208,73 @@ export default function NewPropertyPage() {
       status: current.status === 'published' ? 'draft' : 'published',
     }));
     setError('');
+  };
+
+  const uploadImage = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      throw new Error('file-type');
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error('file-size');
+    }
+
+    await firebaseAuthReady;
+    const user = firebaseAuth.currentUser;
+    if (!user) throw new Error('not-authenticated');
+
+    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-').toLowerCase();
+    const imageRef = ref(
+      firebaseStorage,
+      `properties/${user.uid}/drafts/${crypto.randomUUID()}-${safeFileName}`,
+    );
+    await uploadBytes(imageRef, file, { contentType: file.type });
+    return getDownloadURL(imageRef);
+  };
+
+  const uploadCoverImage = async (event: ChangeEvent<HTMLInputElement>) => {
+    const [file] = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (!file) return;
+
+    setUploading('cover');
+    setError('');
+    try {
+      updateProperty('coverImage', await uploadImage(file));
+    } catch (uploadError) {
+      const code = uploadError instanceof Error ? uploadError.message : '';
+      setError(code === 'file-type'
+        ? 'Choisissez un fichier image (JPG, PNG, WebP…).'
+        : code === 'file-size'
+          ? 'L’image est trop volumineuse. La taille maximale est de 10 Mo.'
+          : 'Impossible d’envoyer l’image. Vérifiez votre connexion puis réessayez.');
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const uploadGalleryImages = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (!files.length) return;
+
+    setUploading('gallery');
+    setError('');
+    try {
+      const photos = await Promise.all(files.map(async (file) => ({
+        url: await uploadImage(file),
+        caption: file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '),
+      })));
+      updateProperty('gallery', [...(property.gallery ?? []), ...photos]);
+    } catch (uploadError) {
+      const code = uploadError instanceof Error ? uploadError.message : '';
+      setError(code === 'file-type'
+        ? 'Choisissez uniquement des fichiers image.'
+        : code === 'file-size'
+          ? 'Une image dépasse la taille maximale de 10 Mo.'
+          : 'Impossible d’envoyer les images. Vérifiez votre connexion puis réessayez.');
+    } finally {
+      setUploading(null);
+    }
   };
 
   useEffect(() => {
@@ -935,6 +1007,24 @@ export default function NewPropertyPage() {
                         </button>
                       ))}
                     </div>
+                    <input
+                      ref={coverInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/avif"
+                      className="sr-only"
+                      onChange={(event) => void uploadCoverImage(event)}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-4 w-full rounded-xl border-dashed"
+                      disabled={uploading !== null}
+                      onClick={() => coverInputRef.current?.click()}
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      {uploading === 'cover' ? 'Envoi de la couverture…' : 'Importer depuis mon appareil'}
+                    </Button>
+                    <p className="mt-2 text-xs leading-5 text-[#77736f]">JPG, PNG, WebP ou AVIF · 10 Mo maximum.</p>
                   </FormSection>
 
                   <FormSection
@@ -953,8 +1043,19 @@ export default function NewPropertyPage() {
                           <button type="button" onClick={() => updateProperty('gallery', (property.gallery ?? []).filter((_, itemIndex) => itemIndex !== index))} className="mx-auto rounded-xl p-3 text-[#b8453c] hover:bg-[#fdeceb]" aria-label="Supprimer cette photo"><Trash2 size={18} /></button>
                         </div>
                       ))}
-                      <Button type="button" variant="outline" onClick={() => updateProperty('gallery', [...(property.gallery ?? []), { url: '', caption: '' }])} className="w-full rounded-xl border-dashed"><Plus className="mr-2 h-4 w-4" />Ajouter une photo</Button>
-                      <p className="text-xs leading-5 text-[#77736f]">Collez l’URL d’une image hébergée. L’envoi de fichiers directs sera ajouté lorsque Firebase Storage sera activé.</p>
+                      <input
+                        ref={galleryInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/avif"
+                        multiple
+                        className="sr-only"
+                        onChange={(event) => void uploadGalleryImages(event)}
+                      />
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <Button type="button" variant="outline" onClick={() => galleryInputRef.current?.click()} disabled={uploading !== null} className="w-full rounded-xl border-dashed"><Upload className="mr-2 h-4 w-4" />{uploading === 'gallery' ? 'Envoi des photos…' : 'Importer depuis mon appareil'}</Button>
+                        <Button type="button" variant="outline" onClick={() => updateProperty('gallery', [...(property.gallery ?? []), { url: '', caption: '' }])} disabled={uploading !== null} className="w-full rounded-xl border-dashed"><Plus className="mr-2 h-4 w-4" />Ajouter par URL</Button>
+                      </div>
+                      <p className="text-xs leading-5 text-[#77736f]">Importez plusieurs photos depuis votre appareil, ou collez une URL. JPG, PNG, WebP ou AVIF · 10 Mo maximum par image.</p>
                     </div>
                   </FormSection>
 
