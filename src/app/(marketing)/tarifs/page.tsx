@@ -4,11 +4,14 @@ import { useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
+  BarChart3,
+  Building2,
   Check,
   CheckCircle2,
   Clock3,
   CreditCard,
   HelpCircle,
+  Home,
   LockKeyhole,
   ShieldCheck,
   Sparkles,
@@ -99,6 +102,7 @@ export default function PricingPage() {
       ],
       ctaText: 'Essayer Starter',
       ctaHref: ROUTES.REGISTER,
+      icon: Home,
     },
     {
       title: 'Pro',
@@ -121,6 +125,7 @@ export default function PricingPage() {
       popular: true,
       ctaText: 'Choisir Pro',
       ctaHref: ROUTES.REGISTER,
+      icon: BarChart3,
     },
     {
       title: 'Business',
@@ -139,6 +144,7 @@ export default function PricingPage() {
       ],
       ctaText: 'Parler à un expert',
       ctaHref: 'mailto:bonjour@livret-accueil.fr',
+      icon: Building2,
     },
   ];
 
@@ -164,7 +170,11 @@ export default function PricingPage() {
             </p>
 
             <div className="mt-9 flex justify-center">
-              <div className="relative inline-flex rounded-full border border-[#1f2925]/9 bg-white p-1.5 shadow-[0_10px_35px_rgba(31,41,37,.08)]">
+              <div className="relative pt-7">
+                <span className="absolute right-1 top-0 rounded-full bg-[#d96c4a] px-3 py-1.5 text-[8px] font-bold uppercase tracking-[0.1em] text-white shadow-[0_5px_14px_rgba(217,108,74,.28)]">
+                  2 mois offerts
+                </span>
+              <div className="inline-flex rounded-full border border-[#1f2925]/9 bg-white p-1.5 shadow-[0_10px_35px_rgba(31,41,37,.08)]">
                 <button
                   type="button"
                   onClick={() => setIsAnnual(false)}
@@ -189,9 +199,7 @@ export default function PricingPage() {
                 >
                   Annuel
                 </button>
-                <span className="absolute -right-3 -top-3 rounded-full bg-[#d96c4a] px-2.5 py-1 text-[8px] font-bold uppercase tracking-[0.1em] text-white shadow-sm">
-                  2 mois offerts
-                </span>
+              </div>
               </div>
             </div>
 

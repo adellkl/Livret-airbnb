@@ -13,6 +13,7 @@ interface PricingCardProps {
   popular?: boolean;
   ctaText: string;
   ctaHref: string;
+  icon: typeof Sparkles;
 }
 
 export default function PricingCard({
@@ -27,6 +28,7 @@ export default function PricingCard({
   popular,
   ctaText,
   ctaHref,
+  icon: Icon,
 }: PricingCardProps) {
   return (
     <article
@@ -60,7 +62,7 @@ export default function PricingCard({
               : 'bg-[#f7eee8] text-[#d96c4a]'
           }`}
         >
-          <Sparkles className="h-4 w-4" />
+          <Icon className="h-4 w-4" />
         </span>
       </div>
 
