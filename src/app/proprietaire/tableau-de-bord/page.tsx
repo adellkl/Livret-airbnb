@@ -137,7 +137,13 @@ export default function OwnerDashboard() {
       label: 'Créer un livret',
       href: ROUTES.OWNER_PROPERTY_NEW,
     },
-    { icon: QrCode, label: 'Générer un QR code', href: ROUTES.OWNER_PROPERTIES },
+    {
+      icon: QrCode,
+      label: publishedProperties[0] ? 'Générer un QR code' : 'Publier un livret pour générer un QR code',
+      href: publishedProperties[0]
+        ? `${ROUTES.OWNER_PROPERTY_DETAIL(publishedProperties[0].id)}#qr-code-section`
+        : ROUTES.OWNER_PROPERTY_NEW,
+    },
     { icon: Calendar, label: 'Voir les réservations', href: ROUTES.OWNER_RESERVATIONS },
     ...(publishedProperties[0] ? [{ icon: Share2, label: 'Voir le livret voyageur', href: ROUTES.PUBLIC_BOOKLET(publishedProperties[0].publicToken) }] : []),
     { icon: Users, label: 'Gérer les voyageurs', href: ROUTES.OWNER_TRAVELERS }
