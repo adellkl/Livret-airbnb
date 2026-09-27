@@ -1,3 +1,5 @@
+/* eslint-disable react/no-unescaped-entities */
+
 export default function LegalPage() {
   return (
     <div className="min-h-screen bg-background py-16 px-4">

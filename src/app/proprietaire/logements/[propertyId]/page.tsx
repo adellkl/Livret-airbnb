@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import QRCode from 'qrcode';
 import OwnerSidebar from '@/components/layout/OwnerSidebar';
@@ -24,13 +25,9 @@ import {
   Mail,
   QrCode,
   Eye,
-  Archive,
-  History,
   Smartphone,
   Lock,
-  Calendar,
-  TrendingUp,
-  Users
+  Calendar
 } from 'lucide-react';
 
 export default function PropertyDetailPage() {
@@ -77,10 +74,7 @@ export default function PropertyDetailPage() {
   const qrUrl = `${publicUrl}?source=qr`;
 
   useEffect(() => {
-    if (!ownerProperty.id) {
-      setQrCodeUrl('');
-      return;
-    }
+    if (!ownerProperty.id) return;
     let active = true;
     QRCode.toDataURL(qrUrl, {
       width: 900,
@@ -89,7 +83,7 @@ export default function PropertyDetailPage() {
       color: { dark: '#17232c', light: '#ffffff' },
     }).then((value) => { if (active) setQrCodeUrl(value); });
     return () => { active = false; };
-  }, [ownerProperty.id, ownerProperty.status, publicUrl]);
+  }, [ownerProperty.id, qrUrl]);
 
   const copyPublicLink = async () => {
     await navigator.clipboard.writeText(publicUrl);
@@ -107,18 +101,6 @@ export default function PropertyDetailPage() {
     secureLink: publicUrl,
   };
 
-  const stats = [
-    { label: 'Consultations', value: String(ownerProperty.views), icon: Eye },
-    { label: 'Visiteurs uniques', value: String(ownerProperty.views), icon: Users },
-    { label: 'Taux de consultation', value: ownerProperty.views ? '100%' : '—', icon: TrendingUp }
-  ];
-
-  const recentDevices = [
-    { device: 'iPhone 15', location: 'Paris', time: 'Il y a 2h' },
-    { device: 'Samsung Galaxy', location: 'Lyon', time: 'Il y a 5h' },
-    { device: 'iPad Pro', location: 'Marseille', time: 'Il y a 1j' }
-  ];
-
   return (
     <div className="min-h-screen bg-background">
       <OwnerSidebar />
@@ -131,11 +113,13 @@ export default function PropertyDetailPage() {
           {loadError && <div className="mb-6 rounded-2xl border border-[#efc1bd] bg-[#fdeceb] px-5 py-4 text-sm text-[#b8453c]">{loadError}</div>}
           <div className="mb-6 grid gap-5 lg:grid-cols-3 lg:gap-8">
             <div className="lg:col-span-2">
-              <img
-                src={property.image}
-                alt={property.name}
-                className="mb-5 h-52 w-full rounded-2xl object-cover sm:h-64"
-              />
+              <div className="relative mb-5 h-52 overflow-hidden rounded-2xl bg-surface-soft sm:h-64">
+                {property.image ? (
+                  <Image src={property.image} alt={property.name} fill unoptimized sizes="(max-width: 1024px) 100vw, 66vw" className="object-cover" />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Aucune photo de couverture</div>
+                )}
+              </div>
               
               <div className="mb-5 rounded-2xl bg-surface p-4 shadow-premium sm:p-6">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -176,10 +160,7 @@ export default function PropertyDetailPage() {
               <Tabs defaultValue="link" className="overflow-hidden rounded-2xl bg-surface shadow-premium">
                 <TabsList className="h-auto w-full overflow-hidden rounded-none border-b border-border p-0">
                   <TabsTrigger value="link" className="min-w-0 flex-1 rounded-none px-2 py-4 text-xs data-[state=active]:border-b-2 data-[state=active]:border-primary sm:px-6 sm:text-sm">
-                    Lien d'accès
-                  </TabsTrigger>
-                  <TabsTrigger value="stats" className="min-w-0 flex-1 rounded-none px-2 py-4 text-xs data-[state=active]:border-b-2 data-[state=active]:border-primary sm:px-6 sm:text-sm">
-                    Statistiques
+                    Lien d&apos;accès
                   </TabsTrigger>
                   <TabsTrigger value="settings" className="min-w-0 flex-1 rounded-none px-2 py-4 text-xs data-[state=active]:border-b-2 data-[state=active]:border-primary sm:px-6 sm:text-sm">
                     Paramètres
@@ -211,7 +192,7 @@ export default function PropertyDetailPage() {
                     <div id="qr-code-section">
                       <h4 className="text-sm font-medium text-foreground mb-3">QR Code</h4>
                       <div className="bg-surface-soft rounded-lg p-6 flex min-h-48 items-center justify-center mb-4">
-                        {qrCodeUrl ? <img src={qrCodeUrl} alt={`QR code du livret ${property.name}`} className="h-44 w-44 rounded-xl bg-white p-2" /> : <div className="text-center text-sm text-muted-foreground"><QrCode size={40} className="mx-auto mb-3" />Génération du QR code…</div>}
+                        {qrCodeUrl ? <Image src={qrCodeUrl} alt={`QR code du livret ${property.name}`} width={176} height={176} unoptimized className="h-44 w-44 rounded-xl bg-white p-2" /> : <div className="text-center text-sm text-muted-foreground"><QrCode size={40} className="mx-auto mb-3" />Génération du QR code…</div>}
                       </div>
                       <a href={qrCodeUrl || undefined} download={`qr-code-${ownerProperty.name || 'livret'}.png`} className="block">
                       <Button variant="outline" className="w-full" disabled={!qrCodeUrl}>
@@ -222,7 +203,7 @@ export default function PropertyDetailPage() {
                     </div>
 
                     <div>
-                      <h4 className="text-sm font-medium text-foreground mb-3">Modes d'accès</h4>
+                      <h4 className="text-sm font-medium text-foreground mb-3">Modes d&apos;accès</h4>
                       <div className="space-y-3">
                         <div className="flex items-center justify-between p-4 bg-surface-soft rounded-lg">
                           <div className="flex items-center gap-3">
@@ -248,7 +229,7 @@ export default function PropertyDetailPage() {
                           <div className="flex items-center gap-3">
                             <Calendar size={18} className="text-muted-foreground" />
                             <div>
-                              <p className="text-sm font-medium text-foreground">Date d'expiration</p>
+                              <p className="text-sm font-medium text-foreground">Date d&apos;expiration</p>
                               <p className="text-xs text-muted-foreground">Accès limité dans le temps</p>
                             </div>
                           </div>
@@ -256,41 +237,6 @@ export default function PropertyDetailPage() {
                         </div>
                       </div>
                     </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="stats" className="p-6">
-                  <div className="mb-6 grid grid-cols-1 gap-3 min-[400px]:grid-cols-3 sm:gap-4">
-                    {stats.map((stat, index) => (
-                      <div key={index} className="bg-surface-soft rounded-lg p-4 text-center">
-                    <stat.icon size={24} className="text-primary mx-auto mb-2" />
-                        <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-                        <p className="text-xs text-muted-foreground">{stat.label}</p>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <div className="h-48 bg-surface-soft rounded-lg flex items-center justify-center mb-6">
-                    <div className="text-center">
-                      <TrendingUp size={32} className="text-primary mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">Graphique des consultations sur 30 jours</p>
-                    </div>
-                  </div>
-
-                  <h4 className="text-sm font-medium text-foreground mb-3">Appareils récents</h4>
-                  <div className="space-y-2">
-                    {recentDevices.map((device, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-surface-soft rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <Smartphone size={16} className="text-muted-foreground" />
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{device.device}</p>
-                            <p className="text-xs text-muted-foreground">{device.location}</p>
-                          </div>
-                        </div>
-                        <span className="text-xs text-muted-foreground">{device.time}</span>
-                      </div>
-                    ))}
                   </div>
                 </TabsContent>
 
@@ -307,18 +253,6 @@ export default function PropertyDetailPage() {
                     <Button variant="outline" className="w-full justify-start" onClick={() => void copyPublicLink()} disabled={!ownerProperty.id}>
                       <Share2 size={18} className="mr-3" />
                       Inviter des voyageurs
-                    </Button>
-                    <Button variant="outline" className="w-full justify-start">
-                      <Copy size={18} className="mr-3" />
-                      Dupliquer le livret
-                    </Button>
-                    <Button variant="outline" className="w-full justify-start">
-                      <Archive size={18} className="mr-3" />
-                      Archiver
-                    </Button>
-                    <Button variant="outline" className="w-full justify-start">
-                      <History size={18} className="mr-3" />
-                      Historique des liens
                     </Button>
                   </div>
                 </TabsContent>

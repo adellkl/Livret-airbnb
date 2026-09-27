@@ -84,10 +84,10 @@ export default function OwnerSidebar() {
       </nav>
 
       <div className="p-4 space-y-4">
-        <Link href="#" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-hover hover:text-sidebar-foreground transition-colors">
+        <a href="mailto:bonjour@livret-accueil.fr?subject=Besoin%20d%E2%80%99aide%20%E2%80%94%20Livret%20d%E2%80%99accueil" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-hover hover:text-sidebar-foreground transition-colors">
           <HelpCircle size={20} />
           <span className="text-sm font-medium">Besoin d&apos;aide ?</span>
-        </Link>
+        </a>
 
         <div className="border-t border-sidebar-border pt-4">
           <div className="flex items-center justify-between gap-2 px-4 py-2">

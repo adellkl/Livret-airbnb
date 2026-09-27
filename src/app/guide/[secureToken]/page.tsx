@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import QRCode from 'qrcode';
@@ -23,18 +24,18 @@ import {
   ShieldCheck,
   Smartphone,
   Star,
-  Thermometer,
   Send,
-  Utensils,
   Wifi,
-  Wind,
   X,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import {
   DEFAULT_OWNER_PROPERTIES,
   type OwnerProperty,
 } from '@/lib/owner-properties';
-import { firebaseAuth, firestore } from '@/lib/firebase/client';
+import { firebaseAuth, firebaseAuthReady, firestore } from '@/lib/firebase/client';
+import { containsBlockedMessageTerm } from '@/lib/message-moderation';
+import { formatMessageTime } from '@/lib/message-presentation';
 import { addDoc, collection, doc, getDoc, onSnapshot, query, serverTimestamp, where } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
@@ -88,70 +89,14 @@ function getCityVisual(property: OwnerProperty): CityVisual {
   );
 }
 
-const fallbackEquipmentCards = [
-  {
-    title: 'Télévision',
-    subtitle: 'Guide rapide',
-    icon: Play,
-    description:
-      'La Smart TV donne accès à Netflix, YouTube et aux chaînes françaises. Utilisez la télécommande noire posée sur le meuble.',
-    steps: ['Allumez avec le bouton rouge', 'Sélectionnez « Smart Hub »', 'Choisissez votre application'],
-    image:
-      'https://images.unsplash.com/photo-1593784991095-a205069470b6?w=700&h=700&fit=crop',
-  },
-  {
-    title: 'Machine à café',
-    subtitle: 'Capsules fournies',
-    icon: Coffee,
-    description:
-      'La machine Nespresso est prête à l’emploi. Les capsules et les tasses sont rangées dans le tiroir juste dessous.',
-    steps: ['Remplissez le réservoir', 'Insérez une capsule', 'Appuyez sur la tasse souhaitée'],
-    image:
-      'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=700&h=700&fit=crop',
-  },
-  {
-    title: 'Chauffage',
-    subtitle: 'Réglage à 21 °C',
-    icon: Thermometer,
-    description:
-      'Le thermostat se trouve dans l’entrée. Pour votre confort, la température conseillée est de 21 °C.',
-    steps: ['Touchez l’écran', 'Réglez avec + ou −', 'Patientez quelques minutes'],
-    image:
-      'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=700&h=700&fit=crop',
-  },
-  {
-    title: 'Lave-linge',
-    subtitle: 'Programme rapide',
-    icon: Wind,
-    description:
-      'Le lave-linge est installé dans le placard de la salle de bain. Une dose de lessive est à votre disposition.',
-    steps: ['Chargez le linge', 'Ajoutez une dose', 'Choisissez le programme 30 min'],
-    image:
-      'https://images.unsplash.com/photo-1626806787461-102c1bfaaea1?w=700&h=700&fit=crop',
-  },
-  {
-    title: 'Plaques de cuisson',
-    subtitle: 'Induction',
-    icon: Utensils,
-    description:
-      'Les plaques à induction se commandent avec les touches tactiles situées sur la partie avant.',
-    steps: ['Posez une casserole', 'Maintenez Marche 2 secondes', 'Réglez la puissance'],
-    image:
-      'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=700&h=700&fit=crop',
-  },
-  {
-    title: 'Climatisation',
-    subtitle: 'Mode silencieux',
-    icon: Wind,
-    description:
-      'La télécommande blanche pilote la climatisation du salon. Fermez les fenêtres avant de l’allumer.',
-    steps: ['Appuyez sur Marche', 'Choisissez le mode froid', 'Réglez à 23 °C'],
-    image:
-      'https://images.unsplash.com/photo-1631545806609-4b4e4d55a8a2?w=700&h=700&fit=crop',
-  },
-];
-
-type EquipmentCard = (typeof fallbackEquipmentCards)[number];
+type EquipmentCard = {
+  title: string;
+  subtitle: string;
+  icon: LucideIcon;
+  description: string;
+  steps: string[];
+  image: string;
+};
 
 type NearbyFilter = string;
 
@@ -159,15 +104,9 @@ type GuideMessage = {
   id: string;
   content: string;
   senderRole: 'guest' | 'owner';
+  senderName: string;
   createdAt: Date | null;
 };
-
-const blockedMessageTerms = ['connard', 'connasse', 'encule', 'enfoire', 'salope', 'pute', 'pd', 'pedale'];
-
-function containsBlockedMessageTerm(message: string) {
-  const normalized = message.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr');
-  return blockedMessageTerms.some((term) => new RegExp(`(^|[^a-z])${term}([^a-z]|$)`, 'i').test(normalized));
-}
 
 const checkoutTasks = [
   'Fermer toutes les fenêtres',
@@ -202,6 +141,7 @@ export default function PublicBookletPage() {
   const [chatDraft, setChatDraft] = useState('');
   const [chatError, setChatError] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [chatConnecting, setChatConnecting] = useState(false);
   const equipmentGuideRef = useRef<HTMLDivElement>(null);
   const nearbyPlacesRef = useRef<HTMLDivElement>(null);
   const heroSectionRef = useRef<HTMLElement>(null);
@@ -209,6 +149,7 @@ export default function PublicBookletPage() {
   const heroFocusRef = useRef<HTMLDivElement>(null);
   const heroFooterRef = useRef<HTMLDivElement>(null);
   const equipmentGuideOpen = selectedEquipment !== null;
+  const blockingOverlayOpen = equipmentGuideOpen || chatOpen;
   const propertyNearbyPlaces = (property.nearbyPlaces ?? []).map((place, index) => ({
     ...place,
     filter: place.category || 'Autre',
@@ -239,7 +180,6 @@ export default function PublicBookletPage() {
     ? property.faqItems.map((question) => ({ question, answer: `Pour cette information, contactez ${hostFirstName || 'votre hôte'} si besoin.` }))
     : [];
   const compactPhone = property.hostPhone.replace(/\s/g, '');
-  const whatsappPhone = property.hostPhone.replace(/\D/g, '');
   const fullAddress = `${property.address}, ${property.postalCode} ${property.city}`;
   const encodedAddress = encodeURIComponent(fullAddress);
   const themeAccent =
@@ -304,6 +244,7 @@ export default function PublicBookletPage() {
 
     const startConversation = async () => {
       try {
+        await firebaseAuthReady;
         const currentUser = firebaseAuth.currentUser ?? (await signInAnonymously(firebaseAuth)).user;
         if (!active) return;
         setGuestId(currentUser.uid);
@@ -316,16 +257,31 @@ export default function PublicBookletPage() {
                 id: message.id,
                 content: String(message.data().content ?? ''),
                 senderRole: message.data().senderRole === 'owner' ? 'owner' as const : 'guest' as const,
+                senderName: String(message.data().senderName ?? (message.data().senderRole === 'owner' ? 'Propriétaire' : 'Voyageur')),
                 createdAt: message.data().createdAt?.toDate?.() ?? null,
                 propertyId: String(message.data().propertyId ?? ''),
               }))
               .filter((message) => message.propertyId === property.id)
               .sort((first, second) => (first.createdAt?.getTime() ?? 0) - (second.createdAt?.getTime() ?? 0)));
+            setChatConnecting(false);
           },
-          () => setChatError('Impossible de charger la conversation pour le moment.'),
+          (snapshotError) => {
+            if (!active) return;
+            setChatConnecting(false);
+            setChatError(snapshotError.code === 'permission-denied'
+              ? 'La messagerie n’est pas autorisée par Firebase. Vérifiez les règles Firestore déployées.'
+              : 'Impossible de charger la conversation pour le moment.');
+          },
         );
-      } catch {
-        if (active) setChatError('La messagerie n’est pas disponible pour le moment.');
+      } catch (authenticationError) {
+        if (!active) return;
+        setChatConnecting(false);
+        const code = authenticationError && typeof authenticationError === 'object' && 'code' in authenticationError
+          ? String(authenticationError.code)
+          : '';
+        setChatError(code === 'auth/operation-not-allowed'
+          ? 'La messagerie doit être activée dans Firebase Authentication (connexion anonyme).'
+          : 'La messagerie n’est pas disponible pour le moment.');
       }
     };
 
@@ -414,7 +370,7 @@ export default function PublicBookletPage() {
   }, []);
 
   useEffect(() => {
-    if (!equipmentGuideOpen) return;
+    if (!blockingOverlayOpen) return;
 
     const scrollPosition = window.scrollY;
     const previousStyles = {
@@ -440,7 +396,7 @@ export default function PublicBookletPage() {
       document.documentElement.style.scrollBehavior =
         previousStyles.scrollBehavior;
     };
-  }, [equipmentGuideOpen]);
+  }, [blockingOverlayOpen]);
 
   useEffect(() => {
     nearbyPlacesRef.current?.scrollTo({ left: 0, behavior: 'smooth' });
@@ -516,6 +472,7 @@ export default function PublicBookletPage() {
         guestId,
         guestName: 'Voyageur',
         senderRole: 'guest',
+        senderName: 'Voyageur',
         content,
         moderationStatus: 'approved',
         createdAt: serverTimestamp(),
@@ -526,6 +483,14 @@ export default function PublicBookletPage() {
     } finally {
       setSendingMessage(false);
     }
+  };
+
+  const openChat = () => {
+    setChatError('');
+    setChatMessages([]);
+    setGuestId('');
+    setChatConnecting(true);
+    setChatOpen(true);
   };
 
   const selectNearbyFilter = (filter: NearbyFilter) => {
@@ -1040,15 +1005,14 @@ export default function PublicBookletPage() {
                     <Phone size={17} />
                     Appeler
                   </a>
-                  <a
-                    href={`https://wa.me/${whatsappPhone}`}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    type="button"
+                    onClick={openChat}
                     className="flex items-center justify-center gap-2 rounded-2xl bg-[#367566] px-4 py-3 text-sm font-semibold text-white"
                   >
                     <MessageCircle size={17} />
-                    WhatsApp
-                  </a>
+                    Écrire
+                  </button>
                 </div>
               </div>
               <div className="border-t border-[#142c3f]/8 bg-white/55 px-6 py-3.5 text-center text-xs text-[#7b858b]">
@@ -1158,15 +1122,14 @@ export default function PublicBookletPage() {
                   Les réponses utiles
                 </h2>
               </div>
-              <a
-                href={`https://wa.me/${whatsappPhone}`}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={openChat}
                 className="mb-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e9f2ef] text-[#367566]"
                 aria-label={`Poser une question à ${hostFirstName}`}
               >
                 <MessageCircle size={18} />
-              </a>
+              </button>
             </div>
             <div className="overflow-hidden rounded-[1.75rem] border border-[#142c3f]/9 bg-white shadow-[0_12px_34px_rgba(20,44,63,0.05)]">
               {guideFaqs.map((faq, index) => {
@@ -1376,7 +1339,7 @@ export default function PublicBookletPage() {
                 <div className="mt-5 grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => { setChatError(''); setChatOpen(true); }}
+                    onClick={openChat}
                     className="flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-white px-3 py-3 text-xs font-semibold text-[#102a3d]"
                   >
                     <MessageCircle size={16} />
@@ -1530,14 +1493,13 @@ export default function PublicBookletPage() {
                     {hostFirstName} vous répond rapidement.
                   </p>
                 </div>
-                <a
-                  href={`https://wa.me/${whatsappPhone}`}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={openChat}
                   className="rounded-full bg-[#367566] px-4 py-2.5 text-xs font-semibold text-white"
                 >
                   Écrire
-                </a>
+                </button>
               </section>
 
               <section className="-mx-5 mt-9 border-t border-[#142c3f]/7 pt-7">
@@ -1604,19 +1566,25 @@ export default function PublicBookletPage() {
           </div>
         )}
 
-        {chatOpen && (
-          <div role="dialog" aria-modal="true" aria-label={`Messagerie avec ${hostFirstName}`} className="fixed inset-0 z-[80] mx-auto flex max-w-[560px] flex-col bg-[#fbfaf8]">
-            <div className="flex items-center justify-between border-b border-[#142c3f]/8 bg-white px-5 py-4 shadow-sm">
-              <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#d9694d]">Messagerie privée</p><h2 className="mt-1 text-lg font-semibold">Écrire à {hostFirstName}</h2></div>
-              <button type="button" onClick={() => setChatOpen(false)} aria-label="Fermer la messagerie" className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f3eee8] text-[#142c3f]"><X size={19} /></button>
+        {chatOpen && createPortal(
+          <div role="dialog" aria-modal="true" aria-label={`Messagerie avec ${hostFirstName}`} className="fixed inset-0 z-[120] mx-auto flex max-w-[560px] flex-col bg-[#fbfaf8]">
+            <div className="grid grid-cols-[40px_minmax(0,1fr)_40px] items-center border-b border-[#142c3f]/8 bg-white px-5 py-3 shadow-sm">
+              <button type="button" onClick={() => setChatOpen(false)} aria-label="Retour au livret" className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f3eee8] text-[#142c3f] transition hover:bg-[#e9e3dc]"><ArrowLeft size={19} /></button>
+              <div className="min-w-0 px-3 text-center">
+                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#d9694d]">Messagerie privée</p>
+                <p className="mt-0.5 truncate text-sm font-semibold text-[#142c3f]">{property.hostName || 'Votre propriétaire'}</p>
+                <p className="truncate text-[10px] font-medium uppercase tracking-[0.12em] text-[#718087]">{property.name}</p>
+              </div>
+              <span aria-hidden="true" className="h-10 w-10" />
             </div>
-            <div className="border-b border-[#d8e6df] bg-[#edf6f2] px-5 py-3 text-xs leading-5 text-[#39705f]"><ShieldCheck className="mr-1 inline h-4 w-4" />Vos messages arrivent instantanément dans le livret. Les propos insultants sont bloqués.</div>
-            <div className="guest-scrollbar flex-1 space-y-3 overflow-y-auto px-5 py-5">
+            <div className="guest-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-5">
+              {chatConnecting && <p className="text-center text-sm text-[#718087]">Connexion sécurisée à la messagerie…</p>}
               {!chatMessages.length && <div className="rounded-[1.5rem] border border-dashed border-[#d8d0c8] bg-white p-5 text-center text-sm leading-6 text-[#718087]">Dites bonjour à {hostFirstName}. Votre hôte recevra votre message ici.</div>}
-              {chatMessages.map((message) => <div key={message.id} className={`max-w-[85%] rounded-[1.25rem] px-4 py-3 text-sm leading-6 ${message.senderRole === 'guest' ? 'ml-auto bg-[#102a3d] text-white' : 'bg-white text-[#31434c] shadow-sm'}`}><p>{message.content}</p></div>)}
+              {chatMessages.map((message) => <div key={message.id} className={`max-w-[85%] rounded-[1.25rem] px-4 py-3 text-sm leading-6 ${message.senderRole === 'guest' ? 'ml-auto bg-[#102a3d] text-white' : 'bg-white text-[#31434c] shadow-sm'}`}><p className={`mb-1 text-[10px] font-bold uppercase tracking-[0.12em] ${message.senderRole === 'guest' ? 'text-white/60' : 'text-[#718087]'}`}>{message.senderRole === 'guest' ? 'Vous' : message.senderName || hostFirstName} · {formatMessageTime(message.createdAt)}</p><p>{message.content}</p></div>)}
             </div>
-            <div className="border-t border-[#142c3f]/8 bg-white p-4"><div className="flex gap-2 rounded-[1.35rem] border border-[#dcd6cf] bg-[#fcfaf8] p-2"><textarea value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} maxLength={1000} rows={2} placeholder="Écrivez votre message…" className="min-h-12 flex-1 resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-[#98a0a2]" /><button type="button" onClick={sendMessage} disabled={sendingMessage || !chatDraft.trim() || !guestId} className="flex h-11 w-11 shrink-0 items-center justify-center self-end rounded-xl bg-[#d9694d] text-white disabled:opacity-40"><Send size={17} /></button></div>{chatError && <p role="alert" className="mt-2 text-xs text-[#b8453c]">{chatError}</p>}</div>
-          </div>
+            <div className="border-t border-[#142c3f]/8 bg-white p-4"><div className="flex gap-2 rounded-[1.35rem] border border-[#dcd6cf] bg-[#fcfaf8] p-2"><textarea value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} maxLength={1000} rows={2} placeholder="Écrivez votre message…" className="min-h-12 flex-1 resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-[#98a0a2]" /><button type="button" onClick={sendMessage} disabled={chatConnecting || sendingMessage || !chatDraft.trim() || !guestId} className="flex h-11 w-11 shrink-0 items-center justify-center self-end rounded-xl bg-[#d9694d] text-white disabled:opacity-40"><Send size={17} /></button></div>{chatError && <p role="alert" className="mt-2 text-xs text-[#b8453c]">{chatError}</p>}</div>
+          </div>,
+          document.body,
         )}
 
         <nav className="fixed inset-x-0 bottom-4 z-50 mx-auto w-[calc(100%-2rem)] max-w-[520px] rounded-[1.7rem] border border-white/10 bg-[#0f1820]/95 p-1.5 text-white shadow-[0_18px_45px_rgba(15,24,32,0.32)] backdrop-blur-xl">

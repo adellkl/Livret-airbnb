@@ -30,6 +30,7 @@ export default function OwnerDashboard() {
   const [properties, setProperties] = useState<Array<{ id: string; name: string; city: string; status: string; publicToken: string }>>([]);
   const [events, setEvents] = useState<Array<{ propertyId: string; eventType: string; occurredAt: Date | null }>>([]);
   const [period, setPeriod] = useState(30);
+  const [periodStart, setPeriodStart] = useState(() => Date.now() - 30 * 86400000);
 
   useEffect(() => {
     let active = true;
@@ -65,7 +66,7 @@ export default function OwnerDashboard() {
   }, []);
 
   const publishedProperties = properties.filter((property) => property.status === 'published');
-  const periodEvents = useMemo(() => events.filter((event) => !event.occurredAt || event.occurredAt >= new Date(Date.now() - period * 86400000)), [events, period]);
+  const periodEvents = useMemo(() => events.filter((event) => !event.occurredAt || event.occurredAt >= new Date(periodStart)), [events, periodStart]);
   const viewEvents = periodEvents.filter((event) => event.eventType === 'view');
   const scanEvents = periodEvents.filter((event) => event.eventType === 'qr_scan');
 
@@ -184,7 +185,7 @@ export default function OwnerDashboard() {
             <div className="min-w-0 rounded-[1.75rem] border border-[#e8e1da] bg-white p-5 shadow-[0_12px_30px_rgba(31,41,37,.06)] sm:p-6 lg:col-span-2">
               <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="text-lg font-semibold text-foreground">Vues des livrets</h3>
-                <select value={period} onChange={(event) => setPeriod(Number(event.target.value))} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-foreground sm:w-auto">
+                <select value={period} onChange={(event) => { const nextPeriod = Number(event.target.value); setPeriod(nextPeriod); setPeriodStart(Date.now() - nextPeriod * 86400000); }} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-foreground sm:w-auto">
                   <option value={30}>30 derniers jours</option>
                   <option value={7}>7 derniers jours</option>
                   <option value={90}>90 derniers jours</option>
@@ -202,7 +203,7 @@ export default function OwnerDashboard() {
             <div className="min-w-0 rounded-[1.75rem] border border-[#e8e1da] bg-white p-5 shadow-[0_12px_30px_rgba(31,41,37,.06)] sm:p-6">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-semibold text-foreground">Activité récente</h3>
-                <a href="#" className="text-sm text-primary hover:underline">Voir tout</a>
+                <Link href={ROUTES.OWNER_STATISTICS} className="text-sm text-primary hover:underline">Voir tout</Link>
               </div>
               <div className="space-y-4">
                 {recentActivities.length ? recentActivities.map((activity, index) => (

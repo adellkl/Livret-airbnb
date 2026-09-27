@@ -107,7 +107,10 @@ service cloud.firestore {
           && request.resource.data.guestId == request.auth.uid)
           || (request.resource.data.senderRole == 'owner'
             && ownsProperty(request.resource.data.propertyId)));
-      allow read: if ownsProperty(resource.data.propertyId)
+      // `ownerId` is validated against the property owner at creation time.
+      // Checking it directly here lets Firestore authorize the real-time
+      // `where('ownerId', '==', uid)` query used by the owner inbox.
+      allow read: if (signedIn() && resource.data.ownerId == request.auth.uid)
         || (signedIn() && resource.data.guestId == request.auth.uid);
       allow update, delete: if ownsProperty(resource.data.propertyId);
     }

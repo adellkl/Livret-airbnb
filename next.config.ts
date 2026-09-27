@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
         hostname: "images.unsplash.com",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "livret-airbnb-a871e.firebasestorage.app",
+        pathname: "/**",
+      },
     ],
   },
 };

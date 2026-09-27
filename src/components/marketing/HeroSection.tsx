@@ -30,7 +30,7 @@ export default function HeroSection() {
                   Essayer gratuitement
                 </Button>
               </Link>
-              <Link href="#">
+              <Link href="/#apercu">
                 <Button size="lg" variant="outline" className="rounded-lg border-border w-full sm:w-auto">
                   Voir une démo
                 </Button>

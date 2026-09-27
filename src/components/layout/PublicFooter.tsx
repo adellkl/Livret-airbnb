@@ -51,9 +51,7 @@ export default function PublicFooter() {
                 Le guide digital imaginé en France pour les hôtes qui aiment recevoir avec attention.
               </p>
               <div className="mt-8 flex items-center gap-3">
-                <a href="#" aria-label="Instagram" className="footer-social flex h-10 w-10 items-center justify-center rounded-full border border-white/12 text-[10px] font-bold uppercase text-white/60 transition hover:border-[#e9a16f]/50 hover:bg-[#e9a16f]/10 hover:text-[#e9a16f]">ig</a>
-                <a href="#" aria-label="LinkedIn" className="footer-social flex h-10 w-10 items-center justify-center rounded-full border border-white/12 text-[10px] font-bold uppercase text-white/60 transition hover:border-[#e9a16f]/50 hover:bg-[#e9a16f]/10 hover:text-[#e9a16f]">in</a>
-                <a href="mailto:bonjour@livret-accueil.fr" className="ml-2 text-sm text-white/50 underline decoration-white/15 underline-offset-4 transition hover:text-white">
+                <a href="mailto:bonjour@livret-accueil.fr" className="text-sm text-white/50 underline decoration-white/15 underline-offset-4 transition hover:text-white">
                   bonjour@livret-accueil.fr
                 </a>
               </div>

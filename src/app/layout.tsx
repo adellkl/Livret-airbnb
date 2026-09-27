@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL
+  ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://livret-airbnb-five.vercel.app");
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: "Livret d’accueil — Un accueil mémorable",
   description:
     "Créez un livret d’accueil digital élégant et pratique pour offrir une expérience mémorable à vos voyageurs.",
