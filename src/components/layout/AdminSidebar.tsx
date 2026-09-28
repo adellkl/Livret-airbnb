@@ -74,9 +74,9 @@ export default function AdminSidebar() {
       <div className="p-6 border-b border-border">
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-white font-bold text-lg">L</span>
+            <span className="text-white font-bold text-lg">M</span>
           </div>
-          <span className="text-lg font-semibold text-foreground">livret d&apos;accueil</span>
+          <span className="text-lg font-semibold text-foreground">Mon Livret</span>
         </div>
         <p className="text-xs text-muted-foreground mt-2">Espace administrateur</p>
       </div>

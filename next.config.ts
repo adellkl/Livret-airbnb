@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
         hostname: "livret-airbnb-a871e.firebasestorage.app",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "firebasestorage.googleapis.com",
+        pathname: "/**",
+      },
     ],
   },
 };

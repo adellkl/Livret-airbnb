@@ -163,7 +163,7 @@ export default function PropertyDetailPage() {
                     Lien d&apos;accès
                   </TabsTrigger>
                   <TabsTrigger value="settings" className="min-w-0 flex-1 rounded-none px-2 py-4 text-xs data-[state=active]:border-b-2 data-[state=active]:border-primary sm:px-6 sm:text-sm">
-                    Paramètres
+                    Partager
                   </TabsTrigger>
                 </TabsList>
 
@@ -240,20 +240,35 @@ export default function PropertyDetailPage() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="settings" className="p-6">
+                <TabsContent value="settings" className="p-4 sm:p-6">
                   <div className="space-y-4">
-                    <Button variant="outline" className="w-full justify-start" onClick={() => window.open(previewUrl, '_blank', 'noopener,noreferrer')} disabled={!ownerProperty.id}>
-                      <Eye size={18} className="mr-3" />
-                      Aperçu public
-                    </Button>
-                    <Button variant="outline" className="w-full justify-start" onClick={() => window.location.assign(`mailto:?subject=${encodeURIComponent(`Livret d’accueil — ${ownerProperty.name}`)}&body=${encodeURIComponent(publicUrl)}`)} disabled={!ownerProperty.id}>
-                      <Mail size={18} className="mr-3" />
-                      Partager par e-mail
-                    </Button>
-                    <Button variant="outline" className="w-full justify-start" onClick={() => void copyPublicLink()} disabled={!ownerProperty.id}>
-                      <Share2 size={18} className="mr-3" />
-                      Inviter des voyageurs
-                    </Button>
+                    <div className="rounded-2xl bg-[#17232c] p-5 text-white">
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-[#ef8b64]"><Eye size={19} /></span>
+                        <div className="min-w-0 flex-1"><p className="text-sm font-semibold">Voyez le livret comme un voyageur</p><p className="mt-1 text-xs leading-5 text-white/65">Vérifiez le contenu, le lien et l’affichage sur mobile avant de le partager.</p></div>
+                      </div>
+                      <Button className="mt-4 h-11 w-full rounded-xl bg-[#e7754d] text-white hover:bg-[#f1855e]" onClick={() => window.open(previewUrl, '_blank', 'noopener,noreferrer')} disabled={!ownerProperty.id}>
+                        <ExternalLink size={16} className="mr-2" /> Ouvrir l’aperçu public
+                      </Button>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <button type="button" onClick={() => window.location.assign(`mailto:?subject=${encodeURIComponent(`Livret d’accueil — ${ownerProperty.name}`)}&body=${encodeURIComponent(publicUrl)}`)} disabled={!ownerProperty.id} className="group rounded-2xl border border-[#e7dfd8] bg-[#fcfaf8] p-4 text-left transition hover:-translate-y-0.5 hover:border-[#e7754d]/45 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f4e5df] text-[#d85b24]"><Mail size={18} /></span>
+                        <p className="mt-4 text-sm font-semibold text-[#26322d]">Envoyer par e-mail</p>
+                        <p className="mt-1 text-xs leading-5 text-[#77736f]">Prépare un e-mail avec le lien du livret.</p>
+                      </button>
+                      <button type="button" onClick={() => void copyPublicLink()} disabled={!ownerProperty.id} className="group rounded-2xl border border-[#e7dfd8] bg-[#fcfaf8] p-4 text-left transition hover:-translate-y-0.5 hover:border-[#e7754d]/45 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f4e5df] text-[#d85b24]"><Copy size={18} /></span>
+                        <p className="mt-4 text-sm font-semibold text-[#26322d]">{copied ? 'Lien copié !' : 'Copier le lien'}</p>
+                        <p className="mt-1 text-xs leading-5 text-[#77736f]">Collez-le dans votre message de réservation.</p>
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col gap-3 rounded-2xl border border-[#e7dfd8] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eaf5f1] text-[#367566]"><Share2 size={18} /></span><div><p className="text-sm font-semibold text-[#26322d]">Inviter vos voyageurs</p><p className="mt-1 text-xs leading-5 text-[#77736f]">Le lien est prêt à être transmis à chaque réservation.</p></div></div>
+                      <Button variant="outline" className="h-10 shrink-0 rounded-xl border-[#ded8d1]" onClick={() => void copyPublicLink()} disabled={!ownerProperty.id}>{copied ? 'Copié' : 'Copier le lien'}</Button>
+                    </div>
                   </div>
                 </TabsContent>
               </Tabs>

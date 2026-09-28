@@ -6,6 +6,7 @@ export const ROUTES = {
   LOGIN: '/connexion',
   REGISTER: '/inscription',
   FORGOT_PASSWORD: '/mot-de-passe-oublie',
+  RESET_PASSWORD: '/reinitialiser-mot-de-passe',
   LEGAL: '/mentions-legales',
   PRIVACY: '/confidentialite',
   TERMS: '/conditions-utilisation',
@@ -23,6 +24,8 @@ export const ROUTES = {
   OWNER_TRAVELERS: '/proprietaire/voyageurs',
   OWNER_INTEGRATIONS: '/proprietaire/integrations',
   OWNER_TEAM: '/proprietaire/equipe',
+  OWNER_SUBSCRIPTION: '/proprietaire/abonnement',
+  OWNER_SECURITY: '/proprietaire/securite',
   OWNER_SETTINGS: '/proprietaire/parametres',
 
   // Admin space

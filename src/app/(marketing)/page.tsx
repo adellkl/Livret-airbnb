@@ -6,7 +6,6 @@ import {
   UtensilsCrossed, Wifi,
 } from 'lucide-react';
 import { ROUTES } from '@/config/routes';
-import AnimatedGuestJourney from '@/components/marketing/AnimatedGuestJourney';
 import DesktopHeroBanner from '@/components/marketing/DesktopHeroBanner';
 import Reveal from '@/components/marketing/Reveal';
 
@@ -20,7 +19,7 @@ const features = [
   {
     icon: QrCode, kicker: 'Partage instantané', title: 'Un lien ou un QR code. C’est tout.',
     text: 'Aucune application à télécharger. Votre guide s’ouvre en un geste, sur tous les téléphones.',
-    className: 'lg:col-span-2 bg-[#1f2925] text-white', accent: true,
+    className: 'xl:col-span-2 bg-[#1f2925] text-white', accent: true,
   },
   {
     icon: Globe2, kicker: 'Voyageurs internationaux', title: 'Parlez leur langue',
@@ -35,7 +34,7 @@ const features = [
   {
     icon: ShieldCheck, kicker: 'Simple et sécurisé', title: 'Les bonnes infos, aux bonnes personnes',
     text: 'Un accès privé pour chaque logement et des données hébergées en Europe.',
-    className: 'lg:col-span-2 bg-[#e7e4d6] text-[#1f2925]', accent: false,
+    className: 'xl:col-span-2 bg-[#e7e4d6] text-[#1f2925]', accent: false,
   },
 ];
 
@@ -87,6 +86,72 @@ function PhonePreview() {
         </div>
       </div>
     </div>
+  );
+}
+
+function BookletPreview() {
+  const guideItems = [
+    { icon: KeyRound, label: 'Arrivée', detail: 'Accès et horaires' },
+    { icon: Wifi, label: 'Wi-Fi', detail: 'Connexion en un geste' },
+    { icon: MapPin, label: 'À proximité', detail: 'Vos bonnes adresses' },
+  ];
+
+  return (
+    <section className="overflow-hidden bg-[linear-gradient(180deg,#fff_0%,#faf7f2_100%)] px-5 py-20 sm:px-8 sm:py-24 lg:py-28">
+      <div className="mx-auto grid max-w-[1180px] items-center gap-12 lg:grid-cols-[.82fr_1.18fr] lg:gap-20">
+        <Reveal>
+          <p className="section-kicker">Un aperçu clair</p>
+          <h2 className="type-section mt-4 font-serif leading-[1.02] tracking-[-0.04em] text-[#1f2925]">
+            Les bonnes informations, au <span className="italic text-[#d96c4a]">bon moment.</span>
+          </h2>
+          <p className="mt-6 max-w-xl text-lg leading-relaxed text-[#69716d]">
+            Chaque logement dispose de son guide privé, personnalisé avec vos photos, vos consignes et vos recommandations.
+          </p>
+          <div className="mt-8 space-y-3">
+            {['Un lien unique et un QR code par logement', 'Vos informations restent modifiables à tout moment', 'Une lecture fluide sur mobile, sans application'].map((item) => (
+              <p key={item} className="flex items-center gap-3 text-sm font-medium text-[#4d5c55]">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#e7f0ea] text-[#367566]"><Check className="h-3.5 w-3.5" /></span>
+                {item}
+              </p>
+            ))}
+          </div>
+          <Link href={ROUTES.REGISTER} className="group mt-9 inline-flex items-center gap-2 text-sm font-bold text-[#d96c4a] transition hover:text-[#bd5639]">
+            Créer mon livret <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+          </Link>
+        </Reveal>
+
+        <Reveal delay={0.12} className="relative">
+          <div className="absolute -inset-8 -z-10 rounded-[3rem] bg-[#ead9cc]/45 blur-3xl" />
+          <article className="overflow-hidden rounded-[2.25rem] border border-[#1f2925]/8 bg-[#fbfaf8] p-3 shadow-[0_28px_70px_rgba(31,41,37,.12)] sm:p-5">
+            <div className="relative min-h-[260px] overflow-hidden rounded-[1.7rem] sm:min-h-[300px]">
+              <Image src="/images/apartment.jpg" alt="Aperçu d’un guide Mon Livret pour un logement" fill sizes="(max-width: 1024px) 100vw, 600px" className="object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#142c3f]/90 via-[#142c3f]/20 to-[#142c3f]/10" />
+              <div className="absolute inset-x-4 top-4 flex items-center justify-between sm:inset-x-6 sm:top-6">
+                <div className="flex items-center gap-2 rounded-full border border-white/20 bg-[#142c3f]/45 px-3 py-2 text-white backdrop-blur-md">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#d9694d] font-serif text-xs italic">M</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[.14em]">Mon Livret</span>
+                </div>
+                <span className="rounded-full border border-white/20 bg-white/15 px-3 py-2 text-[10px] font-bold text-white backdrop-blur-md">FR</span>
+              </div>
+              <div className="absolute inset-x-5 bottom-5 text-white sm:inset-x-7 sm:bottom-7">
+                <p className="text-[10px] font-bold uppercase tracking-[.18em] text-white/70">Votre guide privé</p>
+                <h3 className="mt-2 font-serif text-3xl sm:text-4xl">Votre logement.</h3>
+                <p className="mt-2 text-sm text-white/75">Tout ce dont vos voyageurs ont besoin, réuni ici.</p>
+              </div>
+            </div>
+            <div className="grid gap-2 pt-3 sm:grid-cols-3 sm:pt-5">
+              {guideItems.map((item) => (
+                <div key={item.label} className="rounded-2xl border border-[#1f2925]/7 bg-white p-4">
+                  <item.icon className="h-4 w-4 text-[#d9694d]" />
+                  <p className="mt-4 text-sm font-semibold text-[#1f2925]">{item.label}</p>
+                  <p className="mt-1 text-xs text-[#78817d]">{item.detail}</p>
+                </div>
+              ))}
+            </div>
+          </article>
+        </Reveal>
+      </div>
+    </section>
   );
 }
 
@@ -158,7 +223,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <AnimatedGuestJourney />
+      <BookletPreview />
 
       <section id="apercu" className="bg-[#fbf8f3] px-5 pb-24 pt-16 sm:px-8 sm:py-24 lg:py-32">
         <div className="mx-auto max-w-[1280px]">
@@ -169,10 +234,10 @@ export default function HomePage() {
             </div>
             <p className="max-w-xl text-lg leading-relaxed text-[#67706b] lg:justify-self-end">Beau, simple et pensé pour le mobile. Votre livret rassemble l’essentiel sans jamais perdre le charme ni la personnalité de votre hébergement.</p>
           </Reveal>
-          <div className="mt-14 grid gap-5 lg:grid-cols-3">
+          <div className="mt-10 grid gap-4 sm:mt-12 sm:grid-cols-2 sm:gap-5 xl:mt-14 xl:grid-cols-3">
             {features.map((feature, index) => (
               <Reveal key={feature.title} delay={index * 0.08}>
-                <article className={`group relative min-h-[330px] overflow-hidden rounded-[2rem] p-7 sm:p-9 ${feature.className}`}>
+                <article className={`group relative min-h-[270px] overflow-hidden rounded-[1.75rem] p-6 sm:min-h-[300px] sm:rounded-[2rem] sm:p-8 xl:min-h-[330px] xl:p-9 ${feature.className}`}>
                 <div className={`flex h-12 w-12 items-center justify-center rounded-full ${feature.accent ? 'bg-white/12' : 'bg-[#f5f0e8]'}`}>
                   <feature.icon className={`h-5 w-5 ${feature.accent ? 'text-white' : 'text-[#d96c4a]'}`} />
                 </div>

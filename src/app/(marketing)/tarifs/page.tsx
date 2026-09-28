@@ -27,7 +27,7 @@ import {
 import { ROUTES } from '@/config/routes';
 
 const comparisonFeatures = [
-  { feature: 'Logements inclus', starter: '5', pro: '25', business: 'Illimités' },
+  { feature: 'Logements inclus', starter: '1', pro: '25', business: 'Illimités' },
   { feature: 'Utilisateurs', starter: '1', pro: '3', business: 'Illimités' },
   { feature: 'Livrets et QR codes', starter: true, pro: true, business: true },
   { feature: 'Traductions automatiques', starter: true, pro: true, business: true },
@@ -85,21 +85,21 @@ export default function PricingPage() {
 
   const plans = [
     {
-      title: 'Starter',
-      audience: '1 à 5 logements',
-      price: isAnnual ? '15 €' : '19 €',
-      period: '/ mois',
-      priceNote: isAnnual ? '180 € facturés annuellement' : 'Facturation mensuelle',
+      title: 'Gratuit',
+      audience: '1 logement',
+      price: '0 €',
+      period: '',
+      priceNote: 'Sans carte bancaire',
       description:
-        'Pour créer de beaux livrets et professionnaliser vos premiers accueils.',
+        'Pour créer votre premier guide et offrir un accueil plus simple à vos voyageurs.',
       valueNote: 'Tout l’essentiel pour réduire les questions répétitives.',
       features: [
-        'Jusqu’à 5 logements',
+        '1 logement',
         'Livrets, liens et QR codes',
         'Traductions automatiques',
         'Support par email',
       ],
-      ctaText: 'Essayer Starter',
+      ctaText: 'Commencer gratuitement',
       ctaHref: ROUTES.REGISTER,
       icon: Home,
     },
@@ -115,7 +115,7 @@ export default function PricingPage() {
         ? 'À partir de 1,56 € par logement et par mois.'
         : 'Pensé pour les hôtes qui veulent passer à l’échelle.',
       features: [
-        'Tout ce qui est inclus dans Starter',
+        'Tout ce qui est inclus dans Gratuit',
         'Jusqu’à 25 logements',
         'Statistiques avancées',
         '3 membres d’équipe inclus',
@@ -142,7 +142,7 @@ export default function PricingPage() {
         'Onboarding et support dédiés',
       ],
       ctaText: 'Parler à un expert',
-      ctaHref: 'mailto:bonjour@livret-accueil.fr',
+      ctaHref: 'mailto:contact@monlivret.eu',
       icon: Building2,
     },
   ];
@@ -291,7 +291,7 @@ export default function PricingPage() {
               Choisissez sans mauvaise surprise.
             </h2>
             <p className="mt-5 text-base leading-7 text-[#69716d]">
-              Les fonctions essentielles sont incluses dès Starter. Passez à
+              Les fonctions essentielles sont incluses avec la formule Gratuit. Passez à
               l’offre supérieure lorsque votre activité grandit.
             </p>
           </div>
@@ -303,7 +303,7 @@ export default function PricingPage() {
                   Fonction
                 </div>
                 <div className="flex items-center justify-center py-4 font-serif text-sm text-[#1f2925]">
-                  Starter
+                  Gratuit
                 </div>
                 <div className="relative flex items-center justify-center bg-[#f3e6dd] py-4 font-serif text-sm text-[#b95135]">
                   <span className="absolute top-1 text-[6px] font-sans font-bold uppercase tracking-[0.09em]">
@@ -348,7 +348,7 @@ export default function PricingPage() {
                     <th className="sticky left-0 z-10 bg-white p-5 text-left text-[10px] font-bold uppercase tracking-[0.14em] text-[#7a847e]">
                       Fonctionnalités
                     </th>
-                    {['Starter', 'Pro', 'Business'].map((plan) => (
+                    {['Gratuit', 'Pro', 'Business'].map((plan) => (
                       <th
                         key={plan}
                         className={`p-5 text-center font-serif text-xl text-[#1f2925] ${
@@ -400,10 +400,10 @@ export default function PricingPage() {
             <p className="mt-5 text-sm leading-6 text-[#69716d]">
               Une question plus spécifique ? Écrivez-nous à{' '}
               <a
-                href="mailto:bonjour@livret-accueil.fr"
+                href="mailto:contact@monlivret.eu"
                 className="font-bold text-[#d96c4a]"
               >
-                bonjour@livret-accueil.fr
+                contact@monlivret.eu
               </a>
               .
             </p>

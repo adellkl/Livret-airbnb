@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, User, ChevronDown, LogOut, Building2, X } from 'lucide-react';
+import { Bell, User, ChevronDown, LogOut, Building2, CreditCard, Settings, X } from 'lucide-react';
 import { firebaseAuth, firestore } from '@/lib/firebase/client';
 import { doc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
@@ -115,6 +115,12 @@ export default function DashboardHeader({ title, subtitle }: DashboardHeaderProp
               </div>
               <button type="button" onClick={() => { setAccountOpen(false); router.push(ROUTES.OWNER_PROPERTIES); }} className="mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-foreground hover:bg-surface-soft">
                 <Building2 size={16} /> Mes logements
+              </button>
+              <button type="button" onClick={() => { setAccountOpen(false); router.push(ROUTES.OWNER_SUBSCRIPTION); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-foreground hover:bg-surface-soft">
+                <CreditCard size={16} /> Mon abonnement
+              </button>
+              <button type="button" onClick={() => { setAccountOpen(false); router.push(ROUTES.OWNER_SETTINGS); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-foreground hover:bg-surface-soft">
+                <Settings size={16} /> Réglages
               </button>
               <button type="button" disabled={isSigningOut} onClick={signOut} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-danger hover:bg-danger-light disabled:opacity-60">
                 <LogOut size={16} /> {isSigningOut ? 'Déconnexion…' : 'Se déconnecter'}

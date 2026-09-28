@@ -10,17 +10,17 @@ export default function TermsPage() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-foreground mb-4">Acceptation des conditions</h2>
             <p className="text-muted-foreground mb-4">
-              En accédant et en utilisant le service Livret d'accueil, vous acceptez ces conditions d'utilisation. Si vous n'acceptez pas ces conditions, n'utilisez pas notre service.
+              En accédant et en utilisant le service Mon Livret, vous acceptez ces conditions d'utilisation. Si vous n'acceptez pas ces conditions, n'utilisez pas notre service.
             </p>
             <p className="text-muted-foreground">
-              Livret d'accueil se réserve le droit de modifier ces conditions à tout moment. Les modifications entreront en vigueur dès leur publication sur le site.
+              Mon Livret se réserve le droit de modifier ces conditions à tout moment. Les modifications entreront en vigueur dès leur publication sur le site.
             </p>
           </section>
 
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-foreground mb-4">Description du service</h2>
             <p className="text-muted-foreground mb-4">
-              Livret d'accueil est une plateforme SaaS permettant aux propriétaires de logements, conciergeries, hôtels et maisons d'hôtes de créer des guides d'accueil numériques pour leurs voyageurs.
+              Mon Livret est une plateforme SaaS permettant aux propriétaires de logements, conciergeries, hôtels et maisons d'hôtes de créer des guides d'accueil numériques pour leurs voyageurs.
             </p>
             <p className="text-muted-foreground">
               Le service inclut la création de livrets personnalisables, la génération de liens sécurisés et de QR codes, ainsi que des statistiques de consultation.
@@ -40,10 +40,10 @@ export default function TermsPage() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-foreground mb-4">Abonnements et paiement</h2>
             <p className="text-muted-foreground mb-4">
-              Le service est proposé selon différents plans d'abonnement (Starter, Pro, Business). Les frais d'abonnement sont facturés mensuellement ou annuellement, selon votre choix.
+              Le service est proposé selon différents plans d'abonnement (Gratuit, Pro, Business). Les frais des abonnements payants sont facturés mensuellement ou annuellement, selon votre choix.
             </p>
             <p className="text-muted-foreground mb-4">
-              Tous les paiements sont sécurisés et traités par notre prestataire de paiement. En fournissant vos informations de paiement, vous autorisez Livret d'accueil à facturer votre compte pour les services sélectionnés.
+              Lorsqu'un abonnement payant est souscrit, le paiement est traité de manière sécurisée par Stripe, notre prestataire de paiement. En fournissant vos informations de paiement, vous autorisez Mon Livret à facturer votre compte pour les services sélectionnés.
             </p>
             <p className="text-muted-foreground">
               Vous pouvez annuler votre abonnement à tout moment. L'annulation prendra effet à la fin de la période de facturation en cours.
@@ -68,10 +68,10 @@ export default function TermsPage() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-foreground mb-4">Propriété intellectuelle</h2>
             <p className="text-muted-foreground mb-4">
-              Livret d'accueil et ses concédants détiennent tous les droits, titres et intérêts dans et sur le service, y compris tous les droits de propriété intellectuelle.
+              Mon Livret et ses concédants détiennent tous les droits, titres et intérêts dans et sur le service, y compris tous les droits de propriété intellectuelle.
             </p>
             <p className="text-muted-foreground">
-              Vous conservez la propriété du contenu que vous créez dans vos livrets, mais vous accordez à Livret d'accueil une licence mondiale, non exclusive, transférable, sous-licenciable et sans redevance pour utiliser, reproduire, modifier et afficher ce contenu dans le cadre du service.
+              Vous conservez la propriété du contenu que vous créez dans vos livrets, mais vous accordez à Mon Livret une licence mondiale, non exclusive, transférable, sous-licenciable et sans redevance pour utiliser, reproduire, modifier et afficher ce contenu dans le cadre du service.
             </p>
           </section>
 
@@ -85,7 +85,7 @@ export default function TermsPage() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-foreground mb-4">Limitation de responsabilité</h2>
             <p className="text-muted-foreground mb-4">
-              Dans la mesure maximale autorisée par la loi applicable, Livret d'accueil ne sera pas responsable des dommages indirects, accessoires, spéciaux, consécutifs ou punitifs.
+              Dans la mesure maximale autorisée par la loi applicable, Mon Livret ne sera pas responsable des dommages indirects, accessoires, spéciaux, consécutifs ou punitifs.
             </p>
             <p className="text-muted-foreground">
               Notre responsabilité totale ne dépassera pas le montant que vous avez payé pour le service au cours des douze (12) derniers mois.
@@ -95,7 +95,7 @@ export default function TermsPage() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-foreground mb-4">Résiliation</h2>
             <p className="text-muted-foreground mb-4">
-              Livret d'accueil peut résilier ou suspendre votre compte et l'accès au service à tout moment, sans préavis, pour quelque raison que ce soit, y compris mais sans s'y limiter, en cas de violation de ces conditions.
+              Mon Livret peut résilier ou suspendre votre compte et l'accès au service à tout moment, sans préavis, pour quelque raison que ce soit, y compris mais sans s'y limiter, en cas de violation de ces conditions.
             </p>
             <p className="text-muted-foreground">
               En cas de résiliation, votre droit d'utiliser le service cessera immédiatement.
@@ -115,8 +115,7 @@ export default function TermsPage() {
               Pour toute question relative à ces conditions d'utilisation, contactez-nous :
             </p>
             <p className="text-muted-foreground">
-              Email : legal@livret-accueil.fr<br />
-              Adresse : 12 rue des Batignolles, 75008 Paris, France
+              Email : contact@monlivret.eu
             </p>
           </section>
         </div>

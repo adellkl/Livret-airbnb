@@ -23,7 +23,7 @@ export default function ForgotPasswordPage() {
     setError('');
     try {
       await sendPasswordResetEmail(firebaseAuth, email.trim().toLowerCase(), {
-        url: `${window.location.origin}${ROUTES.LOGIN}`,
+        url: `${window.location.origin}${ROUTES.RESET_PASSWORD}`,
       });
       setSubmitted(true);
     } catch {

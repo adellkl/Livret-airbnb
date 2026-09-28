@@ -29,6 +29,7 @@ import {
 export default function OwnerDashboard() {
   const [properties, setProperties] = useState<Array<{ id: string; name: string; city: string; status: string; publicToken: string }>>([]);
   const [events, setEvents] = useState<Array<{ propertyId: string; eventType: string; occurredAt: Date | null }>>([]);
+  const [reviews, setReviews] = useState<Array<{ propertyId: string; score: number }>>([]);
   const [period, setPeriod] = useState(30);
   const [periodStart, setPeriodStart] = useState(() => Date.now() - 30 * 86400000);
 
@@ -36,11 +37,13 @@ export default function OwnerDashboard() {
     let active = true;
     let unsubscribeProperties: (() => void) | undefined;
     let unsubscribeEvents: (() => void) | undefined;
+    let unsubscribeReviews: (() => void) | undefined;
     const unsubscribeAuth = onAuthStateChanged(firebaseAuth, (user) => {
       unsubscribeProperties?.();
       unsubscribeEvents?.();
+      unsubscribeReviews?.();
       if (!user) {
-        if (active) { setProperties([]); setEvents([]); }
+        if (active) { setProperties([]); setEvents([]); setReviews([]); }
         return;
       }
       unsubscribeProperties = onSnapshot(query(collection(firestore, 'properties'), where('ownerId', '==', user.uid)), (snapshot) => {
@@ -61,14 +64,40 @@ export default function OwnerDashboard() {
           }))
           .sort((first, second) => (second.occurredAt?.getTime() ?? 0) - (first.occurredAt?.getTime() ?? 0)));
       });
+      unsubscribeReviews = onSnapshot(query(collection(firestore, 'guide_reviews'), where('ownerId', '==', user.uid)), (snapshot) => {
+        if (active) setReviews(snapshot.docs.map((item) => ({
+          propertyId: String(item.data().propertyId ?? ''),
+          score: Number(item.data().score ?? 0),
+        })).filter((review) => review.score >= 1 && review.score <= 5));
+      });
     });
-    return () => { active = false; unsubscribeProperties?.(); unsubscribeEvents?.(); unsubscribeAuth(); };
+    return () => { active = false; unsubscribeProperties?.(); unsubscribeEvents?.(); unsubscribeReviews?.(); unsubscribeAuth(); };
   }, []);
 
   const publishedProperties = properties.filter((property) => property.status === 'published');
   const periodEvents = useMemo(() => events.filter((event) => !event.occurredAt || event.occurredAt >= new Date(periodStart)), [events, periodStart]);
   const viewEvents = periodEvents.filter((event) => event.eventType === 'view');
   const scanEvents = periodEvents.filter((event) => event.eventType === 'qr_scan');
+  const averageRating = reviews.length
+    ? reviews.reduce((total, review) => total + review.score, 0) / reviews.length
+    : null;
+  const viewSeries = useMemo(() => {
+    const start = new Date(periodStart);
+    start.setHours(0, 0, 0, 0);
+    const dailyViews = new Map<string, number>();
+    viewEvents.forEach((event) => {
+      if (!event.occurredAt) return;
+      const key = event.occurredAt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+      dailyViews.set(key, (dailyViews.get(key) ?? 0) + 1);
+    });
+    return Array.from({ length: period }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      const label = date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+      return { label, value: dailyViews.get(label) ?? 0 };
+    });
+  }, [period, periodStart, viewEvents]);
+  const maxViewValue = Math.max(...viewSeries.map((point) => point.value), 1);
 
   const stats = [
     {
@@ -87,7 +116,7 @@ export default function OwnerDashboard() {
     },
     {
       icon: Eye,
-      title: 'Vues ce mois',
+      title: 'Vues sur la période',
       value: String(viewEvents.length),
       trend: 'Événements enregistrés',
       trendUp: true
@@ -101,9 +130,9 @@ export default function OwnerDashboard() {
     },
     {
       icon: Star,
-      title: 'Taux de satisfaction',
-      value: '—',
-      trend: 'Aucun avis enregistré',
+      title: 'Satisfaction',
+      value: averageRating ? averageRating.toFixed(1).replace('.', ',') + '/5' : '—',
+      trend: reviews.length ? reviews.length + ' avis reçu' + (reviews.length > 1 ? 's' : '') : 'Aucun avis enregistré',
       trendUp: true
     }
   ];
@@ -121,9 +150,12 @@ export default function OwnerDashboard() {
 
   const propertyPerformance = properties.map((property) => ({
     ...property,
-    views: events.filter((event) => event.propertyId === property.id && event.eventType === 'view').length,
-    scans: events.filter((event) => event.propertyId === property.id && event.eventType === 'qr_scan').length,
-    rating: 0,
+    views: periodEvents.filter((event) => event.propertyId === property.id && event.eventType === 'view').length,
+    scans: periodEvents.filter((event) => event.propertyId === property.id && event.eventType === 'qr_scan').length,
+    rating: (() => {
+      const propertyReviews = reviews.filter((review) => review.propertyId === property.id);
+      return propertyReviews.length ? propertyReviews.reduce((total, review) => total + review.score, 0) / propertyReviews.length : null;
+    })(),
   }));
 
   const quickActions = [
@@ -191,19 +223,40 @@ export default function OwnerDashboard() {
                   <option value={90}>90 derniers jours</option>
                 </select>
               </div>
-              <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed border-[#dcd5ce] bg-[#faf8f5]">
-                <div className="text-center">
-                  <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff1ea] text-[#dc6538]"><TrendingUp size={24} /></span>
-                  <p className="text-sm font-semibold text-foreground">{viewEvents.length ? `${viewEvents.length} vues enregistrées` : 'Vos statistiques apparaîtront ici'}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Les consultations de vos livrets sont comptabilisées automatiquement.</p>
+              {viewEvents.length ? (
+                <div className="h-64 rounded-2xl border border-[#eee7e0] bg-[#faf8f5] px-3 pb-7 pt-5 sm:px-5">
+                  <div className="flex h-full items-end gap-1.5" aria-label={viewEvents.length + ' vues sur la période sélectionnée'}>
+                    {viewSeries.map((point, index) => (
+                      <div key={point.label + '-' + index} className="group flex h-full min-w-0 flex-1 items-end">
+                        <div
+                          title={point.label + ' : ' + point.value + ' vue' + (point.value > 1 ? 's' : '')}
+                          className="w-full rounded-t-md bg-[#e7754d] transition hover:bg-[#c9532d]"
+                          style={{ height: Math.max((point.value / maxViewValue) * 100, point.value ? 7 : 1) + '%' }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-2 flex justify-between text-[10px] font-medium text-muted-foreground">
+                    <span>{viewSeries[0]?.label}</span>
+                    <span>{viewEvents.length} vues réelles</span>
+                    <span>{viewSeries.at(-1)?.label}</span>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed border-[#dcd5ce] bg-[#faf8f5]">
+                  <div className="text-center">
+                    <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff1ea] text-[#dc6538]"><TrendingUp size={24} /></span>
+                    <p className="text-sm font-semibold text-foreground">Aucune vue sur cette période</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Les consultations sont ajoutées automatiquement dès l’ouverture d’un livret.</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="min-w-0 rounded-[1.75rem] border border-[#e8e1da] bg-white p-5 shadow-[0_12px_30px_rgba(31,41,37,.06)] sm:p-6">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-semibold text-foreground">Activité récente</h3>
-                <Link href={ROUTES.OWNER_STATISTICS} className="text-sm text-primary hover:underline">Voir tout</Link>
+                <span className="text-xs font-medium text-muted-foreground">En temps réel</span>
               </div>
               <div className="space-y-4">
                 {recentActivities.length ? recentActivities.map((activity, index) => (
@@ -226,7 +279,7 @@ export default function OwnerDashboard() {
               <div className="mb-5 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-primary">
-                    Ce mois-ci
+                    Période sélectionnée
                   </p>
                   <h3 className="mt-1 text-lg font-semibold text-foreground">Vos logements</h3>
                 </div>
@@ -239,7 +292,7 @@ export default function OwnerDashboard() {
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left py-3 text-sm font-medium text-muted-foreground">Logement</th>
-                      <th className="text-right py-3 text-sm font-medium text-muted-foreground">Vues ce mois</th>
+                      <th className="text-right py-3 text-sm font-medium text-muted-foreground">Vues</th>
                       <th className="text-right py-3 text-sm font-medium text-muted-foreground">Scans QR</th>
                       <th className="text-right py-3 text-sm font-medium text-muted-foreground">Satisfaction</th>
                     </tr>
@@ -257,9 +310,7 @@ export default function OwnerDashboard() {
                         <td className="text-right py-4 text-sm text-foreground">{property.scans}</td>
                         <td className="text-right py-4">
                           <div className="flex justify-end">
-                            {property.rating ? [...Array(property.rating)].map((_, i) => (
-                              <Star key={i} size={14} className="text-warning fill-warning" />
-                            )) : <span className="text-xs text-muted-foreground">—</span>}
+                            {property.rating ? <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#4d665d]">{property.rating.toFixed(1).replace('.', ',')} <Star size={14} className="fill-[#e7754d] text-[#e7754d]" /></span> : <span className="text-xs text-muted-foreground">—</span>}
                           </div>
                         </td>
                       </tr>
@@ -279,7 +330,7 @@ export default function OwnerDashboard() {
                         <p className="mt-0.5 text-xs text-muted-foreground">{property.city}</p>
                       </div>
                       <div className="flex shrink-0 items-center gap-1 rounded-full bg-[#f4f1ed] px-2.5 py-1.5 text-xs font-bold text-[#77736f]">
-                        {property.rating ? `${property.rating},0` : '—'}
+                        {property.rating ? property.rating.toFixed(1).replace('.', ',') : '—'}
                         {property.rating ? <Star size={12} className="fill-current" /> : null}
                       </div>
                     </div>

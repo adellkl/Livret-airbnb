@@ -7,7 +7,7 @@ export default function BrandMark({ className = 'h-9 w-9' }: BrandMarkProps) {
     <svg
       viewBox="0 0 56 56"
       role="img"
-      aria-label="Logo Livret d’accueil"
+      aria-label="Logo Mon Livret"
       className={className}
       xmlns="http://www.w3.org/2000/svg"
     >

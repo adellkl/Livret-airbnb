@@ -10,7 +10,7 @@ export default function PrivacyPage() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-foreground mb-4">Introduction</h2>
             <p className="text-muted-foreground mb-4">
-              Livret d'accueil s'engage à protéger vos données personnelles et à respecter votre vie privée. Cette politique de confidentialité explique comment nous collectons, utilisons et protégeons vos données lorsque vous utilisez notre service.
+              Mon Livret s'engage à protéger vos données personnelles et à respecter votre vie privée. Cette politique de confidentialité explique comment nous collectons, utilisons et protégeons vos données lorsque vous utilisez notre service.
             </p>
             <p className="text-muted-foreground">
               En utilisant notre service, vous acceptez la collecte et l'utilisation de vos données conformément à cette politique.
@@ -88,7 +88,7 @@ export default function PrivacyPage() {
               <li>Droit de retirer votre consentement</li>
             </ul>
             <p className="text-muted-foreground">
-              Pour exercer ces droits, contactez-nous à l'adresse : dpo@livret-accueil.fr
+              Pour exercer ces droits, contactez-nous à l'adresse : contact@monlivret.eu
             </p>
           </section>
 
@@ -111,8 +111,7 @@ export default function PrivacyPage() {
               Pour toute question relative à cette politique de confidentialité, contactez-nous :
             </p>
             <p className="text-muted-foreground">
-              Email : dpo@livret-accueil.fr<br />
-              Adresse : 12 rue des Batignolles, 75008 Paris, France
+              Email : contact@monlivret.eu
             </p>
           </section>
         </div>

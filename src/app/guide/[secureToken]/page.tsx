@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
@@ -35,14 +35,13 @@ import {
 } from '@/lib/owner-properties';
 import { firebaseAuth, firebaseAuthReady, firestore } from '@/lib/firebase/client';
 import { containsBlockedMessageTerm } from '@/lib/message-moderation';
-import { formatMessageTime } from '@/lib/message-presentation';
-import { addDoc, collection, doc, getDoc, onSnapshot, query, serverTimestamp, where } from 'firebase/firestore';
+import { formatMessageDateTime } from '@/lib/message-presentation';
+import { addDoc, collection, doc, getDoc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
 type CityVisual = {
   image: string;
   imagePosition: string;
-  hostAvatar: string;
 };
 
 const CITY_VISUALS: Record<string, CityVisual> = {
@@ -50,29 +49,21 @@ const CITY_VISUALS: Record<string, CityVisual> = {
     image:
       'https://unsplash.com/photos/wAScP0OY-yM/download?force=true&w=1800',
     imagePosition: '50% 44%',
-    hostAvatar:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=320&q=85',
   },
   nice: {
     image:
       'https://unsplash.com/photos/mpVZVCClgac/download?force=true&w=1800',
     imagePosition: '50% 48%',
-    hostAvatar:
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=320&q=85',
   },
   lyon: {
     image:
       'https://images.unsplash.com/photo-1682249301492-c117bddca579?auto=format&fit=crop&w=1800&q=88',
     imagePosition: '50% 50%',
-    hostAvatar:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=320&q=85',
   },
   marseille: {
     image:
       'https://images.unsplash.com/photo-1608037580875-df901b196878?auto=format&fit=crop&w=1800&q=88',
     imagePosition: '50% 50%',
-    hostAvatar:
-      'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=320&q=85',
   },
 };
 
@@ -83,8 +74,6 @@ function getCityVisual(property: OwnerProperty): CityVisual {
     CITY_VISUALS[normalizedCity] ?? {
       image: property.coverImage,
       imagePosition: '50% 50%',
-      hostAvatar:
-        'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=320&q=85',
     }
   );
 }
@@ -129,6 +118,7 @@ export default function PublicBookletPage() {
   const [activeArea, setActiveArea] = useState<'booklet' | 'nearby'>('booklet');
   const [nearbyFilter, setNearbyFilter] = useState<NearbyFilter>('Tout');
   const [departureMode, setDepartureMode] = useState(false);
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [headerScrolled, setHeaderScrolled] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState<
@@ -139,9 +129,14 @@ export default function PublicBookletPage() {
   const [guestId, setGuestId] = useState('');
   const [chatMessages, setChatMessages] = useState<GuideMessage[]>([]);
   const [chatDraft, setChatDraft] = useState('');
+  const [guestName, setGuestName] = useState('');
+  const [guestNameConfirmed, setGuestNameConfirmed] = useState(false);
   const [chatError, setChatError] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [chatConnecting, setChatConnecting] = useState(false);
+  const [selectedRating, setSelectedRating] = useState(0);
+  const [ratingError, setRatingError] = useState('');
+  const [isSendingRating, setIsSendingRating] = useState(false);
   const equipmentGuideRef = useRef<HTMLDivElement>(null);
   const nearbyPlacesRef = useRef<HTMLDivElement>(null);
   const heroSectionRef = useRef<HTMLElement>(null);
@@ -149,7 +144,9 @@ export default function PublicBookletPage() {
   const heroFocusRef = useRef<HTMLDivElement>(null);
   const heroFooterRef = useRef<HTMLDivElement>(null);
   const equipmentGuideOpen = selectedEquipment !== null;
-  const blockingOverlayOpen = equipmentGuideOpen || chatOpen;
+  const blockingOverlayOpen = equipmentGuideOpen || chatOpen || instructionsOpen;
+  const departureComplete = checkedTasks.length === checkoutTasks.length;
+  const departureProgress = Math.round((checkedTasks.length / checkoutTasks.length) * 100);
   const propertyNearbyPlaces = (property.nearbyPlaces ?? []).map((place, index) => ({
     ...place,
     filter: place.category || 'Autre',
@@ -164,7 +161,7 @@ export default function PublicBookletPage() {
       : propertyNearbyPlaces.filter((place) => place.filter === nearbyFilter);
   const cityVisual = getCityVisual(property);
   const heroImage = property.coverImage.trim() || property.gallery?.find((photo) => photo.url.trim())?.url.trim() || cityVisual.image;
-  const hostAvatar = property.hostAvatarUrl?.trim() || cityVisual.hostAvatar;
+  const hostAvatar = property.hostAvatarUrl?.trim() || '';
   const equipmentCards: EquipmentCard[] = (property.equipmentGuides ?? [])
     .filter((equipment) => equipment.name.trim() && equipment.imageUrl.trim())
     .map((equipment) => ({
@@ -176,6 +173,7 @@ export default function PublicBookletPage() {
       image: equipment.imageUrl,
     }));
   const hostFirstName = property.hostName.split(' ')[0] || property.hostName;
+  const hostInitial = hostFirstName.trim().slice(0, 1).toLocaleUpperCase('fr-FR') || 'H';
   const guideFaqs = property.faqItems?.length
     ? property.faqItems.map((question) => ({ question, answer: `Pour cette information, contactez ${hostFirstName || 'votre hôte'} si besoin.` }))
     : [];
@@ -201,6 +199,9 @@ export default function PublicBookletPage() {
           return;
         }
       const data = guide.data();
+      const savedRating = Number(window.localStorage.getItem(`monlivret:rating:${guide.id}`));
+      setSelectedRating(Number.isInteger(savedRating) && savedRating >= 1 && savedRating <= 5 ? savedRating : 0);
+      setRatingError('');
       setOwnerId(String(data.ownerId ?? ''));
       setProperty({
         ...DEFAULT_OWNER_PROPERTIES[0],
@@ -291,8 +292,15 @@ export default function PublicBookletPage() {
 
   useEffect(() => {
     if (!ownerId || !params.secureToken) return;
-    const eventType = new URLSearchParams(window.location.search).get('source') === 'qr' ? 'qr_scan' : 'view';
-    void addDoc(collection(firestore, 'guide_events'), { propertyId: property.id, ownerId, eventType, occurredAt: serverTimestamp() }).catch(() => undefined);
+    const isQrVisit = new URLSearchParams(window.location.search).get('source') === 'qr';
+    const eventTypes = isQrVisit ? ['view', 'qr_scan'] : ['view'];
+    void Promise.all(eventTypes.map((eventType) => addDoc(collection(firestore, 'guide_events'), {
+      propertyId: property.id,
+      ownerId,
+      eventType,
+      source: isQrVisit ? 'qr' : 'direct',
+      occurredAt: serverTimestamp(),
+    }))).catch(() => undefined);
   }, [ownerId, params.secureToken, property.id]);
 
   useEffect(() => {
@@ -454,6 +462,10 @@ export default function PublicBookletPage() {
   const sendMessage = async () => {
     const content = chatDraft.trim();
     if (!content || !guestId || !ownerId) return;
+    if (!guestNameConfirmed || !guestName.trim()) {
+      setChatError('Indiquez votre prénom et votre nom avant d’envoyer un message.');
+      return;
+    }
     if (content.length > 1000) {
       setChatError('Votre message ne peut pas dépasser 1 000 caractères.');
       return;
@@ -470,13 +482,14 @@ export default function PublicBookletPage() {
         propertyName: property.name,
         ownerId,
         guestId,
-        guestName: 'Voyageur',
+        guestName: guestName.trim(),
         senderRole: 'guest',
-        senderName: 'Voyageur',
+        senderName: guestName.trim(),
         content,
         moderationStatus: 'approved',
         createdAt: serverTimestamp(),
       });
+      window.localStorage.setItem('monlivret:guest-name', guestName.trim());
       setChatDraft('');
     } catch {
       setChatError('Votre message n’a pas pu être envoyé. Réessayez dans un instant.');
@@ -485,12 +498,50 @@ export default function PublicBookletPage() {
     }
   };
 
+  const submitRating = async (score: number) => {
+    if (!ownerId || !property.id || isSendingRating || selectedRating) return;
+    setIsSendingRating(true);
+    setRatingError('');
+    try {
+      await firebaseAuthReady;
+      const currentUser = firebaseAuth.currentUser ?? (await signInAnonymously(firebaseAuth)).user;
+      await setDoc(doc(firestore, 'guide_reviews', `${property.id}_${currentUser.uid}`), {
+        propertyId: property.id,
+        ownerId,
+        guestId: currentUser.uid,
+        score,
+        createdAt: serverTimestamp(),
+      });
+      window.localStorage.setItem(`monlivret:rating:${property.id}`, String(score));
+      setSelectedRating(score);
+    } catch {
+      setRatingError('Votre avis n’a pas pu être enregistré. Réessayez dans un instant.');
+    } finally {
+      setIsSendingRating(false);
+    }
+  };
+
   const openChat = () => {
     setChatError('');
     setChatMessages([]);
     setGuestId('');
+    const savedGuestName = window.localStorage.getItem('monlivret:guest-name') ?? '';
+    setGuestName(savedGuestName);
+    setGuestNameConfirmed(Boolean(savedGuestName));
     setChatConnecting(true);
     setChatOpen(true);
+  };
+
+  const confirmGuestName = () => {
+    const normalizedName = guestName.trim().replace(/\s+/g, ' ');
+    if (normalizedName.split(' ').length < 2) {
+      setChatError('Saisissez votre prénom et votre nom pour continuer.');
+      return;
+    }
+    setGuestName(normalizedName);
+    window.localStorage.setItem('monlivret:guest-name', normalizedName);
+    setChatError('');
+    setGuestNameConfirmed(true);
   };
 
   const selectNearbyFilter = (filter: NearbyFilter) => {
@@ -610,7 +661,7 @@ export default function PublicBookletPage() {
                     </span>
                     <span className="min-w-0">
                       <span className="block max-w-[205px] truncate font-serif text-[15px] font-semibold leading-tight">
-                        {headerScrolled ? property.name : 'livret d’accueil'}
+                        {headerScrolled ? property.name : 'Mon Livret'}
                       </span>
                       <span
                         className={`mt-0.5 block text-[8px] uppercase tracking-[0.14em] ${
@@ -647,14 +698,7 @@ export default function PublicBookletPage() {
               >
                 <div className="guest-hero-avatar flex items-center gap-3 rounded-full border border-white/15 bg-black/18 py-1.5 pl-1.5 pr-4 backdrop-blur-lg">
                   <div className="relative h-11 w-11 overflow-hidden rounded-full border-2 border-white/75 bg-[#d8c8bc] shadow-lg">
-                    <Image
-                      src={hostAvatar}
-                      alt={`Portrait de ${property.hostName}`}
-                      fill
-                      unoptimized
-                      sizes="44px"
-                      className="object-cover"
-                    />
+                    {hostAvatar ? <Image src={hostAvatar} alt={`Portrait de ${property.hostName}`} fill unoptimized sizes="44px" className="object-cover" /> : <span className="flex h-full w-full items-center justify-center bg-[#d9694d] font-serif text-lg italic text-white" aria-label={`Initiale de ${property.hostName}`}>{hostInitial}</span>}
                   </div>
                   <div>
                     <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#ffd0b8]">
@@ -685,16 +729,19 @@ export default function PublicBookletPage() {
                 ref={heroFooterRef}
                 className="overflow-hidden rounded-[1.35rem] border border-white/16 bg-black/22 shadow-[0_16px_45px_rgba(2,13,20,.24)] backdrop-blur-xl will-change-[transform,opacity]"
               >
-                <div className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3.5">
                   <div className="min-w-0">
-                    <p className="truncate font-serif text-sm font-semibold">{property.name}</p>
-                    <p className="mt-0.5 text-[9px] uppercase tracking-[0.1em] text-white/55">
-                      {property.type} · {property.capacity} voyageurs
-                    </p>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/48">Votre logement</p>
+                    <p className="mt-1 break-words font-serif text-[17px] font-semibold leading-tight text-white">{property.name}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] font-medium uppercase tracking-[0.1em] text-white/65">
+                      <span>{property.type || 'Logement'}</span>
+                      <span aria-hidden="true" className="h-1 w-1 rounded-full bg-white/45" />
+                      <span>{property.capacity} voyageur{property.capacity > 1 ? 's' : ''}</span>
+                    </div>
                   </div>
                   <div
                     title="Lien privé et sécurisé"
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/14 bg-white/10 text-white/78"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/14 bg-white/10 text-white/78"
                   >
                     <ShieldCheck size={16} />
                   </div>
@@ -846,6 +893,7 @@ export default function PublicBookletPage() {
                 <div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <button
                     type="button"
+                    onClick={() => setInstructionsOpen(true)}
                     className="flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl bg-[#f3eee8] px-2 py-3 text-[13px] font-semibold"
                   >
                     Toutes les instructions
@@ -959,72 +1007,66 @@ export default function PublicBookletPage() {
           </section>
 
           <section className="px-5 py-7">
-            <div className="overflow-hidden rounded-[2rem] border border-[#142c3f]/8 bg-[#f6f4f1] shadow-[0_18px_45px_rgba(20,44,63,0.07)]">
-              <div className="p-6">
+            <div className="relative overflow-hidden rounded-[2rem] border border-[#142c3f]/8 bg-white shadow-[0_20px_50px_rgba(20,44,63,0.09)]">
+              <div className="absolute inset-x-0 top-0 h-28 overflow-hidden bg-[#173b50]"><Image src={heroImage} alt="" fill unoptimized sizes="(max-width: 560px) 100vw, 560px" className="object-cover opacity-65" /></div>
+              <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-br from-[#102a3d]/88 via-[#173b50]/75 to-[#367566]/80" />
+              <div className="absolute -right-10 top-2 h-28 w-28 rounded-full border border-white/10" />
+              <div className="relative p-5 pt-4">
                 <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#8b8f90]">
-                    Votre contact sur place
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/75">
+                    Votre hôte sur place
                   </p>
-                  <span className="flex items-center gap-1 rounded-full border border-[#367566]/12 bg-white px-2.5 py-1 text-[10px] font-bold text-[#367566]">
-                    <BadgeCheck size={13} />
-                    Profil vérifié
+                  <span className="flex shrink-0 items-center gap-1 rounded-full bg-white/12 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur">
+                    <BadgeCheck size={13} className="text-[#9ed6c7]" />
+                    Vérifié
                   </span>
                 </div>
 
-                <div className="mt-6 flex items-center gap-4">
-                  <div className="relative h-[82px] w-[82px] shrink-0 overflow-hidden rounded-full border-4 border-white bg-[#eaded8] shadow-sm">
-                    <Image
-                      src={hostAvatar}
-                      alt={`Portrait de ${property.hostName}`}
-                      fill
-                      unoptimized
-                      sizes="82px"
-                      className="object-cover"
-                    />
+                <div className="mt-7">
+                  <div className="relative h-[72px] w-[72px] overflow-hidden rounded-[1.5rem] border-[3px] border-white bg-[#eaded8] shadow-[0_10px_22px_rgba(20,44,63,0.22)]">
+                    {hostAvatar ? <Image src={hostAvatar} alt={`Portrait de ${property.hostName}`} fill unoptimized sizes="82px" className="object-cover" /> : <span className="flex h-full w-full items-center justify-center bg-[#d9694d] font-serif text-3xl italic text-white" aria-label={`Initiale de ${property.hostName}`}>{hostInitial}</span>}
                   </div>
-                  <div>
-                    <h2 className="text-2xl font-semibold tracking-[-0.02em]">{property.hostName}</h2>
-                    <p className="mt-1 text-xs text-[#7b858b]">Votre hôte · {property.city}</p>
-                    <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-[#367566]">
-                      <span className="h-2 w-2 rounded-full bg-[#48a988]" />
-                      Disponible maintenant
-                    </p>
+                  <div className="mt-4 min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8b8f90]">Votre hôte</p>
+                    <h2 className="mt-1 truncate text-xl font-semibold tracking-[-0.02em] text-[#142c3f]">{property.hostName}</h2>
+                    <p className="mt-1 truncate text-xs text-[#718087]">À votre écoute à {property.city}</p>
                   </div>
                 </div>
 
-                <div className="my-5 h-px bg-[#142c3f]/8" />
-                <p className="text-sm leading-6 text-[#5f6f79]">
-                  Je reste disponible pendant tout votre séjour. Un message
-                  suffit si vous avez une question ou besoin d’aide.
-                </p>
-                <div className="mt-5 grid grid-cols-2 gap-2">
+                <div className="mt-5 rounded-[1.35rem] bg-[#f3f7f5] p-4">
+                  <p className="flex items-center gap-2 text-[11px] font-bold text-[#367566]"><span className="h-2 w-2 rounded-full bg-[#48a988]" /> Disponible maintenant</p>
+                  <p className="mt-2 text-sm leading-6 text-[#53656d]">Une question pendant votre séjour ? Envoyez un message à {hostFirstName || 'votre hôte'} pour recevoir de l’aide directement ici.</p>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
                   <a
                     href={`tel:${compactPhone}`}
-                    className="flex items-center justify-center gap-2 rounded-2xl border border-[#142c3f]/10 bg-white px-4 py-3 text-sm font-semibold text-[#102a3d]"
+                    className="flex min-w-0 items-center justify-center gap-2 rounded-2xl border border-[#dce3e1] bg-white px-3 py-3.5 text-sm font-semibold text-[#142c3f] shadow-sm transition active:scale-[.98]"
                   >
                     <Phone size={17} />
-                    Appeler
+                    <span className="truncate">Appeler</span>
                   </a>
                   <button
                     type="button"
                     onClick={openChat}
-                    className="flex items-center justify-center gap-2 rounded-2xl bg-[#367566] px-4 py-3 text-sm font-semibold text-white"
+                    className="flex min-w-0 items-center justify-center gap-2 rounded-2xl bg-[#367566] px-3 py-3.5 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(54,117,102,0.24)] transition active:scale-[.98]"
                   >
                     <MessageCircle size={17} />
-                    Écrire
+                    <span className="truncate">Écrire un message</span>
                   </button>
                 </div>
               </div>
-              <div className="border-t border-[#142c3f]/8 bg-white/55 px-6 py-3.5 text-center text-xs text-[#7b858b]">
-                Urgence médicale ou sécurité : appelez le 112
+              <div className="border-t border-[#142c3f]/8 bg-[#fbfaf8] px-5 py-3.5 text-center text-xs text-[#7b858b]">
+                En cas d’urgence médicale ou de sécurité, appelez le <strong className="font-semibold text-[#30434b]">112</strong>.
               </div>
             </div>
           </section>
 
           {departureMode && (
             <section id="departure" className="scroll-mt-24 px-5 py-7">
-              <div className="rounded-[2rem] border border-[#d7c8bf] bg-[#f5eee9] p-5 shadow-[0_16px_38px_rgba(96,65,47,0.08)]">
-                <div className="flex items-start justify-between gap-4">
+              <div className="relative overflow-hidden rounded-[2rem] border border-[#d7c8bf] bg-[#f7f1ed] p-5 shadow-[0_20px_44px_rgba(96,65,47,0.1)]">
+                <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-[#e7754d]/12 blur-2xl" />
+                <div className="pointer-events-none absolute -bottom-20 -left-16 h-44 w-44 rounded-full bg-[#367566]/10 blur-2xl" />
+                <div className="relative flex items-start justify-between gap-4">
                   <div>
                     <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#a75b47]">
                       Mode départ activé
@@ -1037,30 +1079,30 @@ export default function PublicBookletPage() {
                     type="button"
                     onClick={() => setDepartureMode(false)}
                     aria-label="Fermer la préparation du départ"
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#6f7c84]"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#e7dfd8] bg-white text-[#6f7c84] shadow-sm transition active:scale-95"
                   >
                     <X size={17} />
                   </button>
                 </div>
 
-                <div className="mt-5 rounded-[1.35rem] bg-white p-4">
+                <div className="relative mt-5 rounded-[1.35rem] border border-white/80 bg-white/90 p-4 shadow-sm">
                   <div className="flex items-center justify-between text-xs font-semibold">
                     <span>{checkedTasks.length} sur {checkoutTasks.length} terminées</span>
                     <span className="text-[#367566]">
-                      {Math.round((checkedTasks.length / checkoutTasks.length) * 100)} %
+                      {departureProgress} %
                     </span>
                   </div>
                   <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#e8e5e1]">
                     <div
                       className="h-full rounded-full bg-[#367566] transition-all duration-500"
                       style={{
-                        width: `${(checkedTasks.length / checkoutTasks.length) * 100}%`,
+                        width: `${departureProgress}%`,
                       }}
                     />
                   </div>
                 </div>
 
-                <div className="mt-3 overflow-hidden rounded-[1.35rem] border border-[#142c3f]/8 bg-white">
+                <div className="relative mt-3 overflow-hidden rounded-[1.35rem] border border-[#142c3f]/8 bg-white shadow-sm">
                   {checkoutTasks.map((task, index) => {
                     const checked = checkedTasks.includes(index);
                     return (
@@ -1068,12 +1110,12 @@ export default function PublicBookletPage() {
                         key={task}
                         type="button"
                         onClick={() => toggleTask(index)}
-                        className="flex w-full items-center gap-4 border-b border-[#142c3f]/8 px-4 py-4 text-left last:border-b-0"
+                        className={`group flex w-full items-center gap-4 border-b border-[#142c3f]/8 px-4 py-4 text-left transition duration-300 last:border-b-0 ${checked ? 'bg-[#eff7f4]' : 'hover:bg-[#faf8f5] active:scale-[.99]'}`}
                       >
                         <span
                           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-xs font-bold transition ${
                             checked
-                              ? 'border-[#367566] bg-[#367566] text-white'
+                              ? 'scale-105 border-[#367566] bg-[#367566] text-white shadow-[0_5px_13px_rgba(54,117,102,0.26)]'
                               : 'border-[#d7c8bf] bg-[#faf7f4] text-[#a75b47]'
                           }`}
                         >
@@ -1082,7 +1124,7 @@ export default function PublicBookletPage() {
                         <span className="flex-1">
                           <span
                             className={`block text-sm font-semibold transition ${
-                              checked ? 'text-[#8b8f90] line-through' : ''
+                              checked ? 'text-[#5f8579] line-through' : ''
                             }`}
                           >
                             {task}
@@ -1098,14 +1140,14 @@ export default function PublicBookletPage() {
                   })}
                 </div>
 
-                {checkedTasks.length === checkoutTasks.length && (
-                  <div className="mt-3 flex items-center gap-3 rounded-[1.35rem] bg-[#367566] p-4 text-white">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15">
-                      <Check size={18} />
-                    </span>
-                    <div>
-                      <p className="text-sm font-semibold">Tout est prêt !</p>
-                      <p className="text-xs text-white/70">Merci et bon retour.</p>
+                {departureComplete && (
+                  <div className="departure-complete relative mt-4 overflow-hidden rounded-[1.35rem] bg-[#367566] p-5 text-white shadow-[0_16px_28px_rgba(54,117,102,0.25)]">
+                    <div className="departure-confetti" aria-hidden="true">
+                      {Array.from({ length: 18 }, (_, index) => <span key={index} style={{ '--confetti-index': index } as CSSProperties} />)}
+                    </div>
+                    <div className="relative">
+                      <p className="text-base font-semibold">Tout est prêt, merci !</p>
+                      <p className="mt-1 text-sm leading-5 text-white/78">Votre départ est préparé. Nous vous souhaitons un excellent retour.</p>
                     </div>
                   </div>
                 )}
@@ -1308,12 +1350,18 @@ export default function PublicBookletPage() {
                     key={star}
                     type="button"
                     aria-label={`${star} étoiles`}
-                    className="text-[#d9694d]"
+                    aria-pressed={selectedRating === star}
+                    disabled={Boolean(selectedRating) || isSendingRating}
+                    onClick={() => void submitRating(star)}
+                    className="rounded-full p-1 text-[#d9694d] transition hover:scale-110 disabled:cursor-default disabled:hover:scale-100"
                   >
-                    <Star size={27} />
+                    <Star size={27} fill={selectedRating >= star ? '#d9694d' : 'none'} />
                   </button>
                 ))}
               </div>
+              {isSendingRating ? <p className="mt-3 text-sm font-medium text-[#6f7c84]">Enregistrement de votre note…</p> : null}
+              {selectedRating ? <p className="mt-3 text-sm font-semibold text-[#367566]">Merci, votre note de {selectedRating} étoile{selectedRating > 1 ? 's' : ''} a bien été enregistrée.</p> : null}
+              {ratingError ? <p className="mt-3 text-sm font-medium text-[#b14e39]">{ratingError}</p> : null}
             </div>
           </section>
 
@@ -1566,23 +1614,60 @@ export default function PublicBookletPage() {
           </div>
         )}
 
+        {instructionsOpen && createPortal(
+          <div role="dialog" aria-modal="true" aria-label="Toutes les instructions" className="fixed inset-0 z-[120] mx-auto flex max-w-[560px] flex-col bg-[#fbfaf8]">
+            <div className="flex items-center justify-between border-b border-[#142c3f]/8 bg-white px-5 py-3 shadow-sm">
+              <button type="button" onClick={() => setInstructionsOpen(false)} aria-label="Fermer les instructions" className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f3eee8] text-[#142c3f] transition hover:bg-[#e9e3dc]"><ArrowLeft size={19} /></button>
+              <div className="min-w-0 text-center"><p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#d9694d]">Votre séjour</p><h2 className="mt-0.5 text-sm font-semibold text-[#142c3f]">Toutes les instructions</h2></div>
+              <button type="button" onClick={() => setInstructionsOpen(false)} aria-label="Fermer" className="flex h-10 w-10 items-center justify-center rounded-full text-[#718087]"><X size={19} /></button>
+            </div>
+            <div className="guest-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6">
+              <div className="rounded-[1.7rem] bg-[#102a3d] p-5 text-white">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#ef9a78]">Arrivée</p>
+                <p className="mt-2 text-2xl font-semibold">À partir de {property.checkIn || '15:00'}</p>
+                <p className="mt-2 text-sm leading-6 text-white/65">Tout ce qu’il faut savoir pour accéder sereinement au logement.</p>
+              </div>
+              <div className="relative mt-5 space-y-3 before:absolute before:bottom-8 before:left-[1.45rem] before:top-8 before:w-px before:bg-[#d9694d]/20">
+                {[
+                  ['01', 'Instructions d’arrivée', property.arrivalInstructions || 'Les instructions seront communiquées par votre hôte.'],
+                  ['02', 'Accès au logement', property.accessCode || 'Accès à confirmer avec votre hôte.'],
+                  ['03', 'Informations pratiques', property.parkingInstructions || 'Retrouvez le Wi-Fi, les équipements et les informations utiles dans ce livret.'],
+                ].map(([number, title, description]) => (
+                  <article key={number} className="relative rounded-[1.4rem] border border-[#142c3f]/8 bg-white p-4 shadow-[0_8px_24px_rgba(20,44,63,0.04)]">
+                    <div className="flex gap-3"><span className="z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f4e5df] text-xs font-bold text-[#d9694d]">{number}</span><div className="min-w-0"><h3 className="text-sm font-semibold text-[#142c3f]">{title}</h3><p className="mt-1 text-sm leading-6 text-[#63737b]">{description}</p></div></div>
+                  </article>
+                ))}
+              </div>
+              <div className="mt-6 rounded-[1.7rem] border border-[#cfe1da] bg-[#eef6f2] p-5">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#367566]">Départ</p>
+                <p className="mt-2 text-xl font-semibold text-[#173b50]">Avant {property.checkOut || '11:00'}</p>
+                <p className="mt-2 text-sm leading-6 text-[#58756e]">{property.departureInstructions || 'Préparez votre départ avec la checklist pour ne rien oublier.'}</p>
+                <button type="button" onClick={() => { setInstructionsOpen(false); startDeparture(); }} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#367566] px-4 py-3 text-sm font-semibold text-white"><Check size={16} /> Ouvrir la checklist de départ</button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
         {chatOpen && createPortal(
           <div role="dialog" aria-modal="true" aria-label={`Messagerie avec ${hostFirstName}`} className="fixed inset-0 z-[120] mx-auto flex max-w-[560px] flex-col bg-[#fbfaf8]">
-            <div className="grid grid-cols-[40px_minmax(0,1fr)_40px] items-center border-b border-[#142c3f]/8 bg-white px-5 py-3 shadow-sm">
-              <button type="button" onClick={() => setChatOpen(false)} aria-label="Retour au livret" className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f3eee8] text-[#142c3f] transition hover:bg-[#e9e3dc]"><ArrowLeft size={19} /></button>
+            <div className="relative grid grid-cols-[40px_minmax(0,1fr)_40px] items-center overflow-hidden bg-[#102a3d] px-5 py-4 text-white shadow-[0_8px_24px_rgba(16,42,61,0.2)]">
+              <div className="pointer-events-none absolute -right-7 -top-10 h-28 w-28 rounded-full border border-white/10" />
+              <button type="button" onClick={() => setChatOpen(false)} aria-label="Retour au livret" className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"><ArrowLeft size={19} /></button>
               <div className="min-w-0 px-3 text-center">
-                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#d9694d]">Messagerie privée</p>
-                <p className="mt-0.5 truncate text-sm font-semibold text-[#142c3f]">{property.hostName || 'Votre propriétaire'}</p>
-                <p className="truncate text-[10px] font-medium uppercase tracking-[0.12em] text-[#718087]">{property.name}</p>
+                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#ef9a78]">Messagerie privée</p>
+                <p className="mt-0.5 truncate text-sm font-semibold">{property.hostName || 'Votre propriétaire'}</p>
+                <p className="truncate text-[10px] font-medium uppercase tracking-[0.12em] text-white/55">{property.name}</p>
               </div>
               <span aria-hidden="true" className="h-10 w-10" />
             </div>
             <div className="guest-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-5">
               {chatConnecting && <p className="text-center text-sm text-[#718087]">Connexion sécurisée à la messagerie…</p>}
-              {!chatMessages.length && <div className="rounded-[1.5rem] border border-dashed border-[#d8d0c8] bg-white p-5 text-center text-sm leading-6 text-[#718087]">Dites bonjour à {hostFirstName}. Votre hôte recevra votre message ici.</div>}
-              {chatMessages.map((message) => <div key={message.id} className={`max-w-[85%] rounded-[1.25rem] px-4 py-3 text-sm leading-6 ${message.senderRole === 'guest' ? 'ml-auto bg-[#102a3d] text-white' : 'bg-white text-[#31434c] shadow-sm'}`}><p className={`mb-1 text-[10px] font-bold uppercase tracking-[0.12em] ${message.senderRole === 'guest' ? 'text-white/60' : 'text-[#718087]'}`}>{message.senderRole === 'guest' ? 'Vous' : message.senderName || hostFirstName} · {formatMessageTime(message.createdAt)}</p><p>{message.content}</p></div>)}
+              {!guestNameConfirmed && <div className="mx-auto mt-5 max-w-sm rounded-[1.5rem] border border-[#dbe6e1] bg-white p-5 text-center shadow-[0_10px_24px_rgba(20,44,63,0.04)]"><p className="text-sm font-semibold text-[#173b50]">Avant de commencer</p><p className="mt-1 text-xs leading-5 text-[#718087]">Indiquez votre prénom et nom : votre hôte saura immédiatement qui lui écrit.</p><input value={guestName} onChange={(event) => { setGuestName(event.target.value); setGuestNameConfirmed(false); setChatError(''); }} onKeyDown={(event) => { if (event.key === 'Enter') confirmGuestName(); }} maxLength={80} autoComplete="name" placeholder="Ex. Camille Martin" className="mt-4 h-11 w-full rounded-xl border border-[#d8e0dc] bg-[#f7faf8] px-3 text-sm text-[#173b50] outline-none placeholder:text-[#98a0a2] focus:border-[#367566]" /><button type="button" onClick={confirmGuestName} disabled={!guestName.trim()} className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#367566] px-4 text-sm font-semibold text-white transition hover:bg-[#2f695b] disabled:cursor-not-allowed disabled:opacity-40"><Check size={16} /> Confirmer mon identité</button></div>}
+              {!chatMessages.length && <div className="mx-auto mt-8 max-w-sm rounded-[1.75rem] border border-[#dbe6e1] bg-[#f1f7f4] p-6 text-center shadow-[0_12px_28px_rgba(20,44,63,0.05)]"><span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#367566] text-white shadow-[0_8px_18px_rgba(54,117,102,0.22)]"><MessageCircle size={21} /></span><p className="mt-4 text-base font-semibold text-[#173b50]">Envoyez un premier message</p><p className="mt-2 text-sm leading-6 text-[#62767a]">Dites bonjour à {hostFirstName}. Votre hôte recevra votre message directement dans son espace privé.</p><div className="mt-4 flex flex-wrap justify-center gap-2"><button type="button" onClick={() => setChatDraft('Bonjour, j’ai une question concernant mon séjour.')} className="rounded-full border border-[#d0e1da] bg-white px-3 py-2 text-xs font-semibold text-[#367566]">J’ai une question</button><button type="button" onClick={() => setChatDraft('Bonjour, je viens d’arriver au logement.')} className="rounded-full border border-[#d0e1da] bg-white px-3 py-2 text-xs font-semibold text-[#367566]">Je viens d’arriver</button></div></div>}
+              {chatMessages.map((message) => <div key={message.id} className={`max-w-[85%] rounded-[1.25rem] px-4 py-3 text-sm leading-6 ${message.senderRole === 'guest' ? 'ml-auto bg-[#102a3d] text-white' : 'bg-white text-[#31434c] shadow-sm'}`}><p className={`mb-1 text-[10px] font-bold uppercase tracking-[0.12em] ${message.senderRole === 'guest' ? 'text-white/60' : 'text-[#718087]'}`}>{message.senderRole === 'guest' ? 'Vous' : message.senderName || hostFirstName} · {formatMessageDateTime(message.createdAt)}</p><p>{message.content}</p></div>)}
             </div>
-            <div className="border-t border-[#142c3f]/8 bg-white p-4"><div className="flex gap-2 rounded-[1.35rem] border border-[#dcd6cf] bg-[#fcfaf8] p-2"><textarea value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} maxLength={1000} rows={2} placeholder="Écrivez votre message…" className="min-h-12 flex-1 resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-[#98a0a2]" /><button type="button" onClick={sendMessage} disabled={chatConnecting || sendingMessage || !chatDraft.trim() || !guestId} className="flex h-11 w-11 shrink-0 items-center justify-center self-end rounded-xl bg-[#d9694d] text-white disabled:opacity-40"><Send size={17} /></button></div>{chatError && <p role="alert" className="mt-2 text-xs text-[#b8453c]">{chatError}</p>}</div>
+            <div className="border-t border-[#142c3f]/8 bg-white p-4"><div className="flex gap-2 rounded-[1.35rem] border border-[#d8e0dc] bg-[#f7faf8] p-2 shadow-[0_8px_20px_rgba(20,44,63,0.04)]"><textarea value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} maxLength={1000} rows={2} placeholder="Écrivez votre message…" className="min-h-12 flex-1 resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-[#98a0a2]" /><button type="button" onClick={sendMessage} disabled={chatConnecting || sendingMessage || !chatDraft.trim() || !guestId} aria-label="Envoyer le message" className="flex h-11 w-11 shrink-0 items-center justify-center self-end rounded-xl bg-[#d9694d] text-white shadow-[0_7px_15px_rgba(217,105,77,0.25)] transition hover:bg-[#c9532d] disabled:opacity-40"><Send size={17} /></button></div><p className="mt-2 text-center text-[10px] text-[#8a9795]">Vos échanges restent privés entre vous et votre hôte.</p>{chatError && <p role="alert" className="mt-2 text-xs text-[#b8453c]">{chatError}</p>}</div>
           </div>,
           document.body,
         )}

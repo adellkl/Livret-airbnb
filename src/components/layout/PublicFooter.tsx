@@ -42,7 +42,7 @@ export default function PublicFooter() {
             <div>
               <Link href={ROUTES.HOME} className="inline-flex items-center gap-3">
                 <BrandMark className="h-11 w-11 drop-shadow-[0_8px_12px_rgba(217,108,74,.25)]" />
-                <span className="font-serif text-2xl font-semibold">livret d’accueil</span>
+                <span className="font-serif text-2xl font-semibold">Mon Livret</span>
               </Link>
               <p className="mt-7 max-w-md font-serif text-3xl leading-[1.15] text-white/90 sm:text-4xl">
                 Chaque séjour mérite une <span className="italic text-[#e9a16f]">belle arrivée.</span>
@@ -51,8 +51,8 @@ export default function PublicFooter() {
                 Le guide digital imaginé en France pour les hôtes qui aiment recevoir avec attention.
               </p>
               <div className="mt-8 flex items-center gap-3">
-                <a href="mailto:bonjour@livret-accueil.fr" className="text-sm text-white/50 underline decoration-white/15 underline-offset-4 transition hover:text-white">
-                  bonjour@livret-accueil.fr
+                <a href="mailto:contact@monlivret.eu" className="text-sm text-white/50 underline decoration-white/15 underline-offset-4 transition hover:text-white">
+                  contact@monlivret.eu
                 </a>
               </div>
             </div>
@@ -77,17 +77,8 @@ export default function PublicFooter() {
           </div>
 
           <div className="relative flex flex-col gap-4 pt-6 text-xs text-white/30 sm:flex-row sm:items-center sm:justify-between">
-            <p>© 2026 Livret d’accueil. Tous droits réservés.</p>
-            <div className="flex flex-wrap items-center gap-5">
-              <span className="flex items-center gap-2 text-white/40">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#84a88d] opacity-40" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#84a88d]" />
-                </span>
-                Tous les services sont opérationnels
-              </span>
-              <span>France · Français</span>
-            </div>
+            <p>© 2026 Mon Livret. Tous droits réservés.</p>
+            <span>France · Français</span>
           </div>
         </div>
       </div>

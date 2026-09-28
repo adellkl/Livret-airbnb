@@ -158,11 +158,11 @@ function TravelerDemo({
           <div className="absolute inset-x-4 top-11 flex items-center justify-between">
             <div className="flex items-center gap-2 rounded-xl border border-white/15 bg-black/20 px-2.5 py-2 backdrop-blur-md">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#d9694d] font-serif italic">
-                L
+                M
               </span>
               <span>
                 <span className="block font-serif text-[11px] font-semibold">
-                  livret d’accueil
+                  Mon Livret
                 </span>
                 <span className="block text-[6px] uppercase tracking-[0.12em] text-white/55">
                   Votre guide privé
@@ -599,7 +599,7 @@ function OwnerDemo({
         <div className="mt-3 rounded-2xl border border-[#1f2925]/7 bg-white p-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[9px] font-bold">Livret d’accueil</p>
+              <p className="text-[9px] font-bold">Mon Livret</p>
               <p className="mt-0.5 text-[7px] text-[#7a847e]">
                 Modifié aujourd’hui
               </p>
@@ -776,7 +776,7 @@ function OwnerDemo({
     );
   }
 
-  const secureLink = `livret-accueil.fr/guide/${demoProperty.id}`;
+  const secureLink = `monlivret.eu/guide/${demoProperty.id}`;
 
   return (
     <div className="h-full overflow-hidden bg-[#f8f5f1] p-4 text-[#1f2925]">

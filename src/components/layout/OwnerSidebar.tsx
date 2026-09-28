@@ -9,13 +9,12 @@ import {
   Home,
   BookOpen,
   Calendar,
-  BarChart3,
   Users,
-  Puzzle,
   Settings,
   ChevronRight,
   HelpCircle,
-  Crown
+  Crown,
+  CreditCard,
 } from 'lucide-react';
 import BrandMark from '@/components/layout/BrandMark';
 import { firebaseAuth, firestore } from '@/lib/firebase/client';
@@ -28,9 +27,8 @@ const menuItems = [
   { icon: Home, label: 'Logements', href: ROUTES.OWNER_PROPERTIES },
   { icon: BookOpen, label: 'Livrets', href: ROUTES.OWNER_BOOKLETS },
   { icon: Calendar, label: 'Réservations', href: ROUTES.OWNER_RESERVATIONS },
-  { icon: BarChart3, label: 'Statistiques', href: ROUTES.OWNER_STATISTICS, proOnly: true },
   { icon: Users, label: 'Voyageurs', href: ROUTES.OWNER_TRAVELERS },
-  { icon: Puzzle, label: 'Intégrations', href: ROUTES.OWNER_INTEGRATIONS, proOnly: true },
+  { icon: CreditCard, label: 'Abonnement', href: ROUTES.OWNER_SUBSCRIPTION },
   { icon: Settings, label: 'Réglages', href: ROUTES.OWNER_SETTINGS },
 ];
 
@@ -57,7 +55,7 @@ export default function OwnerSidebar() {
       <div className="p-6 border-b border-sidebar-border">
         <div className="flex items-center space-x-2">
           <BrandMark className="h-8 w-8" />
-          <span className="text-lg font-semibold">livret d&apos;accueil</span>
+          <span className="text-lg font-semibold">Mon Livret</span>
         </div>
       </div>
 
@@ -84,19 +82,19 @@ export default function OwnerSidebar() {
       </nav>
 
       <div className="p-4 space-y-4">
-        <a href="mailto:bonjour@livret-accueil.fr?subject=Besoin%20d%E2%80%99aide%20%E2%80%94%20Livret%20d%E2%80%99accueil" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-hover hover:text-sidebar-foreground transition-colors">
+        <a href="mailto:contact@monlivret.eu?subject=Besoin%20d%E2%80%99aide%20%E2%80%94%20Mon%20Livret" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-hover hover:text-sidebar-foreground transition-colors">
           <HelpCircle size={20} />
           <span className="text-sm font-medium">Besoin d&apos;aide ?</span>
         </a>
 
         <div className="border-t border-sidebar-border pt-4">
-          <div className="flex items-center justify-between gap-2 px-4 py-2">
+          <Link href={ROUTES.OWNER_SUBSCRIPTION} className="flex items-center justify-between gap-2 rounded-xl px-4 py-2 transition hover:bg-sidebar-hover">
             <div className="min-w-0">
               <div className="flex items-center gap-2"><p className="max-w-28 truncate text-sm font-medium">{profileName}</p><span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[.1em] ${isPaid ? 'border-[#8cc9b8]/25 bg-[#367566]/20 text-[#9ed6c7]' : 'border-white/15 bg-white/8 text-white/60'}`}>{isPaid && <Crown size={10} />}{isPaid ? (plan === 'business' ? 'Business' : 'Pro') : 'Gratuit'}</span></div>
               <p className="text-xs text-sidebar-foreground/60">{isPaid ? 'Propriétaire' : '1 logement inclus'}</p>
             </div>
             <ChevronRight size={16} className="text-sidebar-foreground/60" />
-          </div>
+          </Link>
         </div>
       </div>
     </aside>

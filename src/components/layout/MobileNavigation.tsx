@@ -9,9 +9,8 @@ import {
   Building2,
   BookOpen,
   Calendar,
-  BarChart3,
+  CreditCard,
   Users,
-  Puzzle,
   Settings,
   ExternalLink,
   LayoutDashboard,
@@ -33,9 +32,8 @@ const ownerMenuItems = [
   { label: 'Livrets', href: ROUTES.OWNER_BOOKLETS, icon: BookOpen },
   { label: 'Nouveau logement', href: ROUTES.OWNER_PROPERTY_NEW, icon: Plus },
   { label: 'Réservations', href: ROUTES.OWNER_RESERVATIONS, icon: Calendar },
-  { label: 'Statistiques', href: ROUTES.OWNER_STATISTICS, icon: BarChart3, proOnly: true },
   { label: 'Voyageurs', href: ROUTES.OWNER_TRAVELERS, icon: Users },
-  { label: 'Intégrations', href: ROUTES.OWNER_INTEGRATIONS, icon: Puzzle, proOnly: true },
+  { label: 'Abonnement', href: ROUTES.OWNER_SUBSCRIPTION, icon: CreditCard },
   { label: 'Réglages', href: ROUTES.OWNER_SETTINGS, icon: Settings },
 ];
 
@@ -107,7 +105,7 @@ export default function MobileNavigation({ type }: MobileNavigationProps) {
             <div>
               <p className="font-serif text-lg font-semibold text-[#1f2925]">Espace propriétaire</p>
               <p className="text-[10px] uppercase tracking-[0.13em] text-[#8a837d]">
-                Livret d’accueil
+                Mon Livret
               </p>
             </div>
           </div>

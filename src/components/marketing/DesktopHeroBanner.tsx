@@ -87,8 +87,8 @@ function DesktopPhonePreview() {
 
 export default function DesktopHeroBanner() {
   return (
-    <section className="relative hidden overflow-hidden bg-[#f5f0e8] lg:block">
-      <div className="mx-auto grid min-h-[760px] max-w-[1440px] grid-cols-[.9fr_1.1fr] items-center gap-14 px-12 pb-20 pt-14 xl:px-20">
+    <section className="relative hidden min-h-[calc(100svh-76px)] overflow-hidden bg-[#f5f0e8] lg:block">
+      <div className="mx-auto grid min-h-[calc(100svh-76px)] max-w-[1440px] grid-cols-[.9fr_1.1fr] items-center gap-14 px-12 pb-20 pt-14 xl:px-20">
         <div className="relative z-10 max-w-[650px]">
           <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#1f2925]/10 bg-white/65 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-[#516358]">
             <HeartHandshake className="h-3.5 w-3.5 text-[#d96c4a]" />

@@ -10,16 +10,14 @@ export default function LegalPage() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-foreground mb-4">Éditeur du site</h2>
             <p className="text-muted-foreground mb-2">
-              <strong>Livret d'accueil</strong><br />
-              SAS au capital de 10 000 €<br />
-              12 rue des Batignolles, 75008 Paris, France<br />
-              RCS Paris 123 456 789<br />
-              SIRET 123 456 789 00012<br />
-              TVA intracommunautaire : FR 12 123456789
+              <strong>Mon Livret</strong><br />
+              Adel Loukal — Entrepreneur individuel / micro-entreprise<br />
+              SIREN : 107 730 020<br />
+              RCS Bobigny<br />
+              TVA : Franchise en base de TVA — pas de numéro de TVA communiqué
             </p>
             <p className="text-muted-foreground">
-              Email : contact@livret-accueil.fr<br />
-              Téléphone : +33 1 23 45 67 89
+              Email : contact@monlivret.eu
             </p>
           </section>
 
@@ -33,7 +31,7 @@ export default function LegalPage() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-foreground mb-4">Directeur de la publication</h2>
             <p className="text-muted-foreground">
-              M. Jean Dupont, Directeur Général
+              Adel Loukal
             </p>
           </section>
 
@@ -50,7 +48,7 @@ export default function LegalPage() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-foreground mb-4">Protection des données personnelles</h2>
             <p className="text-muted-foreground mb-4">
-              Les données personnelles collectées sur ce site sont traitées conformément au Règlement Général sur la Protection des Données (RGPD) et à la politique de confidentialité de Livret d'accueil.
+              Les données personnelles collectées sur ce site sont traitées conformément au Règlement Général sur la Protection des Données (RGPD) et à la politique de confidentialité de Mon Livret.
             </p>
             <p className="text-muted-foreground">
               Pour plus d'informations, consultez notre politique de confidentialité.
@@ -70,7 +68,7 @@ export default function LegalPage() {
           <section>
             <h2 className="text-2xl font-semibold text-foreground mb-4">Contact</h2>
             <p className="text-muted-foreground">
-              Pour toute question relative aux mentions légales de ce site, vous pouvez nous contacter par email à l'adresse : legal@livret-accueil.fr
+              Pour toute question relative aux mentions légales de ce site, vous pouvez nous contacter par email à l'adresse : contact@monlivret.eu
             </p>
           </section>
         </div>

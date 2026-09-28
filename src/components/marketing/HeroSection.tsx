@@ -71,7 +71,7 @@ export default function HeroSection() {
                 <div className="aspect-[4/3] bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl flex items-center justify-center mb-4">
                   <div className="text-center">
                     <div className="w-16 h-16 bg-primary rounded-xl mx-auto mb-3 flex items-center justify-center">
-                      <span className="text-white font-bold text-2xl">L</span>
+                      <span className="text-white font-bold text-2xl">M</span>
                     </div>
                     <p className="text-sm font-medium text-foreground">L&apos;Atelier des Batignolles</p>
                     <p className="text-xs text-muted-foreground">Livret d&apos;accueil</p>

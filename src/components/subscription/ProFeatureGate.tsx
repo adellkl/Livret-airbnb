@@ -22,7 +22,7 @@ export default function ProFeatureGate({ title, description, children }: ProFeat
         <p className="mt-5 flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#d85b24]"><Crown size={13} /> Disponible avec Pro</p>
         <h2 className="mt-2 text-2xl font-semibold text-[#24292c]">{title}</h2>
         <p className="mt-3 text-sm leading-6 text-[#77736f]">{description}</p>
-        <Link href={ROUTES.PRICING} className="mt-6 inline-flex rounded-xl bg-[#17232c] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#293d46]">Découvrir Pro</Link>
+        <Link href={ROUTES.OWNER_SUBSCRIPTION} className="mt-6 inline-flex rounded-xl bg-[#17232c] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#293d46]">Découvrir Pro</Link>
       </div>
     </section>
   );

@@ -11,9 +11,9 @@ interface AuthShellProps {
 function AuthBrand({ light = false }: { light?: boolean }) {
   return (
     <span className="flex items-center gap-3">
-      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d96c4a] font-serif text-xl italic text-white shadow-[0_8px_24px_rgba(217,108,74,.22)]">L</span>
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d96c4a] font-serif text-xl italic text-white shadow-[0_8px_24px_rgba(217,108,74,.22)]">M</span>
       <span className={`font-serif text-xl font-semibold tracking-[-0.02em] ${light ? 'text-white' : 'text-[#1f2925]'}`}>
-        livret d’accueil
+        Mon Livret
       </span>
     </span>
   );

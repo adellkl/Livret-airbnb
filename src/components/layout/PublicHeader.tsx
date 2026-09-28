@@ -11,7 +11,7 @@ function Brand() {
     <span className="flex items-center gap-2.5">
       <BrandMark />
       <span className="font-serif text-xl font-semibold tracking-[-0.02em] text-[#1f2925]">
-        livret d’accueil
+        Mon Livret
       </span>
     </span>
   );
