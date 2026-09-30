@@ -18,7 +18,6 @@ import { compressImageToDataUrl } from '@/lib/image-data-url';
 import {
   ArrowLeft,
   ArrowRight,
-  ArrowDownToLine,
   BookOpen,
   Building2,
   Check,
@@ -26,9 +25,7 @@ import {
   Home,
   ImageIcon,
   KeyRound,
-  Link2,
   ListChecks,
-  LoaderCircle,
   MapPin,
   Palette,
   Plus,
@@ -170,9 +167,6 @@ export default function NewPropertyPage() {
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const equipmentInputRef = useRef<HTMLInputElement>(null);
   const [equipmentUploadIndex, setEquipmentUploadIndex] = useState<number | null>(null);
-  const [listingUrl, setListingUrl] = useState('');
-  const [isImportingListing, setIsImportingListing] = useState(false);
-  const [importNotice, setImportNotice] = useState('');
 
   const progress = (currentStep / steps.length) * 100;
   const currentStepData = steps[currentStep - 1];
@@ -300,62 +294,6 @@ export default function NewPropertyPage() {
     } finally {
       setEquipmentUploadIndex(null);
       setUploading(null);
-    }
-  };
-
-  const importListing = async () => {
-    if (!listingUrl.trim()) {
-      setImportNotice('Collez un lien Airbnb ou Google Maps pour commencer l’import.');
-      return;
-    }
-    setIsImportingListing(true);
-    setImportNotice('');
-    try {
-      const response = await fetch('/api/property-import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: listingUrl.trim() }),
-      });
-      const imported = await response.json() as {
-        error?: string;
-        name?: string;
-        description?: string;
-        coverImage?: string;
-        gallery?: string[];
-        amenities?: string[];
-        address?: { address?: string; city?: string; postalCode?: string };
-        type?: string;
-      };
-      if (!response.ok) throw new Error(imported.error || 'Import impossible.');
-
-      const type = imported.type?.toLocaleLowerCase('fr') ?? '';
-      const matchedType = type.includes('villa') ? 'Villa'
-        : type.includes('house') || type.includes('maison') ? 'Maison'
-          : type.includes('chalet') ? 'Chalet'
-            : type.includes('loft') ? 'Loft'
-              : type.includes('studio') ? 'Studio'
-                : type.includes('apartment') || type.includes('appartement') ? 'Appartement'
-                  : '';
-      const images = Array.from(new Set(imported.gallery ?? []));
-      setProperty((current) => ({
-        ...current,
-        name: imported.name?.trim() || current.name,
-        description: imported.description?.trim() || current.description,
-        coverImage: imported.coverImage?.trim() || current.coverImage,
-        gallery: images.length ? images.map((url, index) => ({ url, caption: `Photo importée ${index + 1}` })) : current.gallery,
-        amenities: imported.amenities?.length ? Array.from(new Set([...(current.amenities ?? []), ...imported.amenities])) : current.amenities,
-        address: imported.address?.address?.trim() || current.address,
-        city: imported.address?.city?.trim() || current.city,
-        postalCode: imported.address?.postalCode?.trim() || current.postalCode,
-        type: matchedType || current.type,
-      }));
-      setImportNotice(images.length || imported.name || imported.description
-        ? 'Import terminé. Relisez les informations, puis complétez les éléments absents avant de publier.'
-        : 'Le lien a été lu, mais il ne contient pas de données publiques exploitables. Vous pouvez continuer la saisie manuellement.');
-    } catch (importError) {
-      setImportNotice(importError instanceof Error ? importError.message : 'Impossible d’importer ce lien.');
-    } finally {
-      setIsImportingListing(false);
     }
   };
 
@@ -749,24 +687,6 @@ export default function NewPropertyPage() {
             <div key={currentStep} className="wizard-step-enter min-h-[520px] p-5 sm:p-8">
               {currentStep === 1 && (
                 <div className="space-y-7">
-                  <section className="relative overflow-hidden rounded-[1.5rem] border border-[#cfe3dc] bg-[linear-gradient(135deg,#edf7f2_0%,#f9fcfa_58%,#fff4ed_100%)] p-5 shadow-[0_12px_30px_rgba(54,117,102,.08)] sm:p-6">
-                    <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full border border-[#367566]/10" />
-                    <div className="relative flex items-start gap-3">
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#17232c] text-[#f2a081] shadow-[0_8px_18px_rgba(23,35,44,.15)]"><ArrowDownToLine size={20} /></span>
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-bold uppercase tracking-[.16em] text-[#367566]">Import intelligent</p>
-                        <h3 className="mt-1 text-lg font-semibold text-[#243b36]">Démarrez avec votre annonce</h3>
-                        <p className="mt-1 text-sm leading-5 text-[#5d756d]">Collez un lien Airbnb ou Google Maps : les informations publiques disponibles seront proposées dans votre livret.</p>
-                      </div>
-                    </div>
-                    <div className="relative mt-5 flex flex-col gap-2 sm:flex-row">
-                      <div className="relative min-w-0 flex-1"><Link2 size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#779188]" /><Input value={listingUrl} onChange={(event) => setListingUrl(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void importListing(); } }} placeholder="https://www.airbnb.fr/rooms/... ou Google Maps" className="h-12 border-[#cfe3dc] bg-white pl-11 shadow-sm focus-visible:border-[#367566] focus-visible:ring-[#367566]/15" /></div>
-                      <Button type="button" onClick={() => void importListing()} disabled={isImportingListing} className="h-12 shrink-0 rounded-xl bg-[#17232c] px-5 hover:bg-[#263944]">{isImportingListing ? <LoaderCircle size={16} className="mr-2 animate-spin" /> : <ArrowDownToLine size={16} className="mr-2" />}{isImportingListing ? 'Import en cours…' : 'Importer'}</Button>
-                    </div>
-                    <div className="relative mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[#637972]"><span>Nom et description</span><span>Photos disponibles</span><span>Adresse et équipements visibles</span></div>
-                    {importNotice && <p className={`relative mt-4 rounded-xl px-3 py-2.5 text-xs leading-5 ${importNotice.startsWith('Import terminé') ? 'bg-[#dff1e9] text-[#286452]' : 'bg-[#fff0e9] text-[#a94f34]'}`}>{importNotice}</p>}
-                  </section>
-
                   <FormSection
                     icon={Home}
                     title="Identité du logement"

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
+import BrandMark from '@/components/layout/BrandMark';
 import { useParams } from 'next/navigation';
 import QRCode from 'qrcode';
 import {
@@ -705,13 +706,7 @@ export default function PublicBookletPage() {
                       headerScrolled ? 'text-[#142c3f]' : 'text-white'
                     }`}
                   >
-                    <Image
-                      src="/icon.png"
-                      alt="Mon Livret"
-                      width={36}
-                      height={36}
-                      className="h-9 w-9 shrink-0 rounded-xl shadow-[0_7px_18px_rgba(8,24,34,.2)]"
-                    />
+                    <BrandMark className="h-9 w-9 shrink-0 rounded-xl bg-[#fffaf4] object-contain shadow-[0_7px_18px_rgba(8,24,34,.2)]" />
                     <span className="min-w-0">
                       <span className="block max-w-[205px] truncate font-serif text-[15px] font-semibold leading-tight">
                         {headerScrolled ? property.name : 'Mon Livret'}

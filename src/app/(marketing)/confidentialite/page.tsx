@@ -1,3 +1,7 @@
+import { pageMetadata } from '@/lib/seo';
+
+export const metadata = pageMetadata('/confidentialite');
+
 /* eslint-disable react/no-unescaped-entities */
 
 export default function PrivacyPage() {

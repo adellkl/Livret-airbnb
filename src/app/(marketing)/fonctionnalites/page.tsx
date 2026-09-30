@@ -1,3 +1,7 @@
+import { pageMetadata } from '@/lib/seo';
+
+export const metadata = pageMetadata('/fonctionnalites');
+
 import CtaBanner from '@/components/marketing/CtaBanner';
 import FeaturesScrollStory from '@/components/marketing/FeaturesScrollStory';
 
@@ -9,7 +13,7 @@ export default function FeaturesPage() {
           <div className="max-w-4xl pb-12 md:pb-20">
             <p className="section-kicker mb-5">Une expérience, de bout en bout</p>
             <h1 className="text-balance text-5xl font-semibold tracking-[-0.05em] sm:text-6xl lg:text-7xl">
-              Tout pour mieux accueillir.
+              Votre livret d’accueil, de l’arrivée au départ.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
               Huit fonctionnalités pensées comme un même parcours, de la création de votre livret

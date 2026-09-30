@@ -95,10 +95,10 @@ export default function DesktopHeroBanner() {
             L’attention qui change tout
           </div>
 
-          <h1 className="font-serif text-[clamp(4.5rem,6.4vw,6.8rem)] leading-[0.9] tracking-[-0.055em] text-[#1f2925]">
+          <h2 className="font-serif text-[clamp(4.5rem,6.4vw,6.8rem)] leading-[0.9] tracking-[-0.055em] text-[#1f2925]">
             Un accueil mémorable,{' '}
             <span className="italic text-[#d96c4a]">avant même</span> l’arrivée.
-          </h1>
+          </h2>
 
           <p className="mt-7 max-w-[590px] text-lg leading-relaxed text-[#5f6863]">
             Créez un livret d’accueil digital aussi soigné que votre logement.

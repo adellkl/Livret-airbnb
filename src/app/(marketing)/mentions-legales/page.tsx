@@ -1,3 +1,7 @@
+import { pageMetadata } from '@/lib/seo';
+
+export const metadata = pageMetadata('/mentions-legales');
+
 /* eslint-disable react/no-unescaped-entities */
 
 export default function LegalPage() {

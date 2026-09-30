@@ -1,3 +1,7 @@
+import { pageMetadata } from '@/lib/seo';
+
+export const metadata = pageMetadata('/conditions-utilisation');
+
 /* eslint-disable react/no-unescaped-entities */
 
 export default function TermsPage() {

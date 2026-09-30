@@ -1,3 +1,7 @@
+import { pageMetadata, websiteStructuredData } from '@/lib/seo';
+
+export const metadata = pageMetadata('/');
+
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -93,6 +97,8 @@ function PhonePreview() {
 export default function HomePage() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteStructuredData).replace(/</g, '\\u003c') }} />
+      <h1 className="sr-only">Livret d’accueil numérique pour locations saisonnières</h1>
       <DesktopHeroBanner />
 
       <section className="relative overflow-hidden bg-[#f5f0e8] lg:hidden">
@@ -102,9 +108,9 @@ export default function HomePage() {
             <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#1f2925]/10 bg-white/70 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-[#516358]">
               <BookOpen className="h-3.5 w-3.5 text-[#d96c4a]" /> L’attention qui change tout
             </div>
-            <h1 className="type-hero max-w-[720px] text-balance font-serif leading-[.94] tracking-[-0.045em] text-[#1f2925]">
+            <h2 className="type-hero max-w-[720px] text-balance font-serif leading-[.94] tracking-[-0.045em] text-[#1f2925]">
               Un accueil mémorable, <span className="italic text-[#d96c4a]">avant même</span> l’arrivée.
-            </h1>
+            </h2>
             <p className="type-lead mt-7 max-w-[590px] leading-relaxed text-[#5f6863]">
               Créez un livret d’accueil digital aussi soigné que votre logement. Moins de questions pour vous,
               plus de sérénité pour vos voyageurs.

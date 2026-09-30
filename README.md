@@ -55,3 +55,7 @@ firebase deploy --only firestore:rules,storage --project VOTRE_PROJET_FIREBASE
 **Stack :** Next.js, React, TypeScript, Tailwind CSS et Firebase.
 
 Les intégrations calendriers/PMS sont encore annoncées comme à venir. Pour signaler une vulnérabilité, voir [SECURITY.md](SECURITY.md).
+
+## Référencement
+
+Le SEO des pages publiques, le sitemap et l’exclusion des pages privées sont configurés. Renseignez le domaine final dans `NEXT_PUBLIC_APP_URL`. La validation Search Console et l’envoi du sitemap sont détaillés dans [le guide SEO](docs/SEO.md).
