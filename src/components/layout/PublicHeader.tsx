@@ -1,15 +1,22 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { ArrowRight, Menu, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ROUTES } from '@/config/routes';
-import BrandMark from '@/components/layout/BrandMark';
 
 function Brand() {
   return (
     <span className="flex items-center gap-2.5">
-      <BrandMark />
+      <Image
+        src="/icon.png"
+        alt="Logo Mon Livret"
+        width={36}
+        height={36}
+        priority
+        className="h-9 w-9"
+      />
       <span className="font-serif text-xl font-semibold tracking-[-0.02em] text-[#1f2925]">
         Mon Livret
       </span>

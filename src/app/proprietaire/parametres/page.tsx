@@ -5,18 +5,18 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Camera, Crown, LockKeyhole, Mail, Save, Settings2, Smartphone } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import OwnerPageShell from '@/components/owner/OwnerPageShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { firebaseAuth, firestore } from '@/lib/firebase/client';
-import { firebaseStorage } from '@/lib/firebase/client';
-import { getDownloadURL, ref, uploadBytesResumable } from 'firebase/storage';
+import { firebaseAuth, firebaseAuthReady, firestore } from '@/lib/firebase/client';
 import { ROUTES } from '@/config/routes';
 import { useSubscription } from '@/hooks/useSubscription';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const maxImageSizeBytes = 25 * 1024 * 1024;
+const maxAvatarDataUrlLength = 280_000;
 
 function withTimeout<T>(promise: Promise<T>, milliseconds: number, code: string) {
   return new Promise<T>((resolve, reject) => {
@@ -26,6 +26,42 @@ function withTimeout<T>(promise: Promise<T>, milliseconds: number, code: string)
       (error) => { window.clearTimeout(timeout); reject(error); },
     );
   });
+}
+
+function getFirebaseErrorCode(error: unknown) {
+  return error && typeof error === 'object' && 'code' in error ? String(error.code) : error instanceof Error ? error.message : '';
+}
+
+async function compressAvatar(file: File) {
+  const sourceUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const nextImage = new window.Image();
+      nextImage.onload = () => resolve(nextImage);
+      nextImage.onerror = () => reject(new Error('image-decode-failed'));
+      nextImage.src = sourceUrl;
+    });
+    let width = Math.min(640, image.naturalWidth || 640);
+    let height = Math.max(1, Math.round((image.naturalHeight || 640) * (width / (image.naturalWidth || 640))));
+    let quality = 0.86;
+    let dataUrl = '';
+    for (let attempt = 0; attempt < 7; attempt += 1) {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('canvas-unavailable');
+      context.drawImage(image, 0, 0, width, height);
+      dataUrl = canvas.toDataURL('image/webp', quality);
+      if (dataUrl.length <= maxAvatarDataUrlLength) return dataUrl;
+      width = Math.max(160, Math.round(width * 0.78));
+      height = Math.max(160, Math.round(height * 0.78));
+      quality = Math.max(0.58, quality - 0.06);
+    }
+    throw new Error('image-too-large-after-compression');
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
 }
 
 export default function SettingsPage() {
@@ -58,8 +94,12 @@ export default function SettingsPage() {
   }, []);
 
   const save = async () => {
+    await firebaseAuthReady;
     const user = firebaseAuth.currentUser;
-    if (!user) return;
+    if (!user) {
+      setError('Votre session a expiré. Reconnectez-vous avant d’enregistrer vos modifications.');
+      return;
+    }
     setMessage('');
     setError('');
     if (!name.trim()) {
@@ -99,40 +139,28 @@ export default function SettingsPage() {
       setError('Choisissez un fichier image (JPG, PNG ou WebP).');
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setError('L’image est trop volumineuse. La taille maximale est de 10 Mo.');
+    if (file.size > maxImageSizeBytes) {
+      setError('L’image est trop volumineuse. La taille maximale est de 25 Mo.');
       return;
     }
+    await firebaseAuthReady;
     const user = firebaseAuth.currentUser;
-    if (!user) return;
+    if (!user) {
+      setError('Votre session a expiré. Reconnectez-vous avant d’importer une photo.');
+      return;
+    }
 
     setUploadingAvatar(true);
-    setAvatarProgress(0);
+    setAvatarProgress(10);
     try {
-      const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-').toLowerCase();
-      const avatarRef = ref(firebaseStorage, `properties/${user.uid}/profile/${crypto.randomUUID()}-${safeFileName}`);
-      const uploadTask = uploadBytesResumable(avatarRef, file, { contentType: file.type });
-      await new Promise<void>((resolve, reject) => {
-        const timeout = window.setTimeout(() => {
-          uploadTask.cancel();
-          reject(new Error('upload-timeout'));
-        }, 45000);
-        uploadTask.on('state_changed', (snapshot) => {
-          setAvatarProgress(Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100));
-        }, (uploadError) => {
-          window.clearTimeout(timeout);
-          reject(uploadError);
-        }, () => {
-          window.clearTimeout(timeout);
-          resolve();
-        });
-      });
-      const nextAvatarUrl = await withTimeout(getDownloadURL(avatarRef), 15000, 'download-url-timeout');
+      const nextAvatarUrl = await withTimeout(compressAvatar(file), 30000, 'compression-timeout');
+      setAvatarProgress(75);
       await withTimeout(
-        updateDoc(doc(firestore, 'profiles', user.uid), { avatarUrl: nextAvatarUrl, updatedAt: serverTimestamp() }),
+        setDoc(doc(firestore, 'profiles', user.uid), { avatarUrl: nextAvatarUrl, updatedAt: serverTimestamp() }, { merge: true }),
         15000,
         'profile-update-timeout',
       );
+      setAvatarProgress(100);
       setAvatarUrl(nextAvatarUrl);
       setMessage('Votre photo est enregistrée. Vos guides sont en cours de mise à jour.');
 
@@ -151,11 +179,15 @@ export default function SettingsPage() {
         })
         .catch(() => setMessage('Votre photo est enregistrée. La synchronisation des guides reprendra lors de leur prochaine mise à jour.'));
     } catch (uploadError) {
-      const code = uploadError instanceof Error ? uploadError.message : '';
-      setError(code === 'upload-timeout' || code === 'storage/canceled'
-        ? 'L’import a expiré après 45 secondes. Vérifiez votre connexion puis réessayez avec une image plus légère.'
-        : code === 'storage/unauthorized'
-          ? 'Firebase Storage refuse cet envoi. Les règles de stockage doivent autoriser votre compte.'
+      const code = getFirebaseErrorCode(uploadError);
+      setError(code === 'not-authenticated'
+        ? 'Votre session a expiré. Reconnectez-vous avant d’importer une photo.'
+        : code === 'compression-timeout'
+          ? 'La préparation de l’image prend trop de temps. Réessayez avec une image plus légère.'
+          : code === 'image-too-large-after-compression'
+            ? 'Cette image reste trop grande après optimisation. Choisissez une autre photo.'
+            : code === 'image-decode-failed' || code === 'canvas-unavailable'
+              ? 'Cette image ne peut pas être lue par votre navigateur. Essayez un JPG, PNG ou WebP.'
           : 'Impossible d’importer votre photo. Vérifiez votre connexion puis réessayez.');
     } finally {
       setUploadingAvatar(false);

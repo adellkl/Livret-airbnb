@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, MessageCircleMore, Send, ShieldCheck, UsersRound } from 'lucide-react';
+import { ArrowLeft, ChevronRight, MessageCircleMore, Send, ShieldCheck, Trash2, UsersRound } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { addDoc, collection, onSnapshot, query, serverTimestamp, where } from 'firebase/firestore';
+import { addDoc, collection, doc, onSnapshot, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
 
 import OwnerPageShell from '@/components/owner/OwnerPageShell';
 import { firebaseAuth, firebaseAuthReady, firestore } from '@/lib/firebase/client';
@@ -32,6 +32,9 @@ export default function TravelersPage() {
   const [ownerId, setOwnerId] = useState('');
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
+  const [conversationToDelete, setConversationToDelete] = useState<OwnerMessage | null>(null);
+  const [isDeletingConversation, setIsDeletingConversation] = useState(false);
+  const [isMobileConversationOpen, setIsMobileConversationOpen] = useState(false);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -63,10 +66,11 @@ export default function TravelersPage() {
     const key = message.propertyId + '-' + message.guestId;
     const current = items.get(key);
     const messageHasName = hasConfirmedGuestName(message.guestName);
-    const currentHasName = Boolean(current && hasConfirmedGuestName(current.guestName));
+    const previousGuestName = current?.guestName;
+    const currentHasName = Boolean(previousGuestName && hasConfirmedGuestName(previousGuestName));
     items.set(key, {
       ...message,
-      guestName: messageHasName ? message.guestName : currentHasName ? current.guestName : message.guestName,
+      guestName: messageHasName ? message.guestName : (currentHasName ? previousGuestName : undefined) ?? message.guestName,
     });
     return items;
   }, new Map<string, OwnerMessage>()).values()).sort(
@@ -100,6 +104,30 @@ export default function TravelersPage() {
     }
   };
 
+  const deleteConversation = async () => {
+    if (!conversationToDelete || isDeletingConversation) return;
+    setIsDeletingConversation(true);
+    setError('');
+    try {
+      const messageIds = messages
+        .filter((message) => message.propertyId === conversationToDelete.propertyId && message.guestId === conversationToDelete.guestId)
+        .map((message) => message.id);
+      for (let start = 0; start < messageIds.length; start += 450) {
+        const batch = writeBatch(firestore);
+        messageIds.slice(start, start + 450).forEach((messageId) => batch.delete(doc(firestore, 'guide_messages', messageId)));
+        await batch.commit();
+      }
+      setSelectedKey('');
+      setIsMobileConversationOpen(false);
+      setConversationToDelete(null);
+    } catch (deleteError) {
+      const code = deleteError && typeof deleteError === 'object' && 'code' in deleteError ? String(deleteError.code) : '';
+      setError(code === 'permission-denied' ? 'Firebase bloque la suppression. Vérifiez les règles Firestore déployées.' : 'Impossible de supprimer cette conversation.');
+    } finally {
+      setIsDeletingConversation(false);
+    }
+  };
+
   return (
     <OwnerPageShell title="Voyageurs" subtitle="Échangez avec vos voyageurs sans quitter votre espace propriétaire.">
       <section className="grid gap-5 md:grid-cols-3">
@@ -109,23 +137,25 @@ export default function TravelersPage() {
       {error ? <p role="alert" className="mt-4 rounded-2xl border border-[#efc1bd] bg-[#fdeceb] px-5 py-4 text-sm text-[#b8453c]">{error}</p> : null}
       <section className="mt-6 overflow-hidden rounded-[1.5rem] border border-[#e4ddd6] bg-white shadow-[0_16px_40px_rgba(31,41,37,.06)] md:rounded-[2rem]">
         <div className="grid md:min-h-[520px] md:grid-cols-[300px_1fr]">
-          <aside className="border-b border-[#eee8e2] bg-[#fcfaf8] p-3 md:border-b-0 md:border-r md:p-4">
+          <aside className={'border-b border-[#eee8e2] bg-[#fcfaf8] p-3 md:block md:border-b-0 md:border-r md:p-4 ' + (isMobileConversationOpen ? 'hidden' : 'block')}>
             <div className="flex items-center justify-between px-1.5 md:px-2"><p className="text-[10px] font-bold uppercase tracking-[.16em] text-[#9a948e]">Boîte de réception</p><span className="rounded-full bg-[#eee8e2] px-2 py-1 text-[10px] font-bold text-[#77736f]">{conversations.length}</span></div>
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] md:mt-4 md:block md:space-y-2 md:overflow-visible md:pb-0">
+            <div className="mt-3 space-y-2 md:mt-4">
               {conversations.map((conversation) => {
                 const key = conversation.propertyId + '-' + conversation.guestId;
                 const active = key === activeConversationKey;
                 const nameConfirmed = hasConfirmedGuestName(conversation.guestName);
-                return <button key={key} type="button" onClick={() => setSelectedKey(key)} className={'group relative min-w-[220px] rounded-xl border px-3.5 py-3.5 text-left transition md:w-full md:min-w-0 md:rounded-2xl md:px-4 md:py-4 ' + (active ? 'border-[#17232c] bg-[#17232c] text-white shadow-[0_12px_26px_rgba(23,35,44,.17)]' : 'border-transparent bg-white/60 hover:border-[#e5ddd5] hover:bg-white hover:shadow-sm')}><span className="flex items-center justify-between gap-3"><span className="min-w-0 truncate text-sm font-semibold">{nameConfirmed ? conversation.guestName : 'Nom à renseigner'}</span><span className={'shrink-0 text-[10px] font-medium md:text-[11px] ' + (active ? 'text-white/60' : 'text-[#78817d]')}>{formatMessageDateTime(conversation.createdAt)}</span><ChevronRight size={15} className={'hidden shrink-0 transition md:block ' + (active ? 'text-white/60' : 'text-[#c0b9b2] group-hover:translate-x-0.5')} /></span></button>;
+                return <button key={key} type="button" onClick={() => { setSelectedKey(key); setIsMobileConversationOpen(true); }} className={'group relative w-full rounded-xl border px-3.5 py-3.5 text-left transition md:rounded-2xl md:px-4 md:py-4 ' + (active ? 'border-[#17232c] bg-[#17232c] text-white shadow-[0_12px_26px_rgba(23,35,44,.17)]' : 'border-transparent bg-white/60 hover:border-[#e5ddd5] hover:bg-white hover:shadow-sm')}><span className="flex items-center justify-between gap-3"><span className="min-w-0 truncate text-sm font-semibold">{nameConfirmed ? conversation.guestName : 'Nom à renseigner'}</span><span className={'shrink-0 text-[10px] font-medium md:text-[11px] ' + (active ? 'text-white/60' : 'text-[#78817d]')}>{formatMessageDateTime(conversation.createdAt)}</span><ChevronRight size={15} className={'shrink-0 transition ' + (active ? 'text-white/60' : 'text-[#c0b9b2] group-hover:translate-x-0.5')} /></span></button>;
               })}
               {!conversations.length ? <p className="px-2 py-8 text-sm leading-6 text-[#77736f]">Les nouveaux messages de vos voyageurs apparaîtront ici.</p> : null}
             </div>
+            {selectedKey && selectedConversation ? <button type="button" onClick={() => setConversationToDelete(selectedConversation)} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[#edd6ce] bg-white px-3 py-2.5 text-xs font-semibold text-[#b9553d] transition hover:border-[#dfb6aa] hover:bg-[#fff6f2]"><Trash2 size={14} />Supprimer cette conversation</button> : null}
           </aside>
-          <div className="flex min-h-[470px] flex-col md:min-h-[390px]">
-            {selectedConversation ? <><div className="border-b border-[#eee8e2] px-4 py-3.5 md:px-5 md:py-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#f4e7df] font-serif text-sm font-semibold text-[#d85b24] md:h-10 md:w-10 md:text-base">{getGuestInitials(selectedConversation.guestName)}</span><div className="min-w-0"><p className="truncate font-semibold">{hasConfirmedGuestName(selectedConversation.guestName) ? selectedConversation.guestName : 'Nom à renseigner'}</p><p className="mt-0.5 text-xs text-[#77736f]">Conversation privée</p></div></div></div><div className="h-[310px] flex-none space-y-3 overflow-y-auto p-4 md:h-auto md:flex-1 md:p-5">{conversationMessages.map((message) => <div key={message.id} className={'max-w-[88%] rounded-[1.25rem] px-4 py-3 text-sm leading-6 md:max-w-[82%] ' + (message.senderRole === 'owner' ? 'ml-auto bg-[#17232c] text-white' : 'bg-[#f5f1ed] text-[#33444b]')}><p className={'mb-1 text-[10px] font-bold uppercase tracking-[0.12em] ' + (message.senderRole === 'owner' ? 'text-white/60' : 'text-[#718087]')}>{message.senderRole === 'owner' ? 'Vous' : message.senderName} · {formatMessageDateTime(message.createdAt)}</p><p>{message.content}</p></div>)}</div><div className="border-t border-[#eee8e2] bg-white p-3 md:p-4"><div className="flex gap-2 rounded-2xl border border-[#ddd7d0] p-2"><textarea value={reply} onChange={(event) => setReply(event.target.value)} maxLength={1000} rows={2} placeholder="Répondre au voyageur…" className="min-h-11 flex-1 resize-none px-2 py-1 text-sm outline-none" /><button type="button" onClick={sendReply} disabled={sending || !reply.trim()} className="flex h-11 w-11 shrink-0 items-center justify-center self-end rounded-xl bg-[#d9694d] text-white disabled:opacity-40"><Send size={17} /></button></div></div></> : <div className="flex flex-1 flex-col items-center justify-center px-6 text-center"><MessageCircleMore className="text-[#d9694d]" size={32} /><h2 className="mt-4 text-lg font-semibold">Aucun message pour le moment</h2><p className="mt-2 max-w-sm text-sm leading-6 text-[#77736f]">Le bouton « Écrire à l’hôte » du guide ouvre une conversation privée ici.</p></div>}
+          <div className={'min-h-[470px] flex-col md:flex md:min-h-[390px] ' + (isMobileConversationOpen ? 'flex' : 'hidden')}>
+            {selectedConversation ? <><button type="button" onClick={() => setIsMobileConversationOpen(false)} className="flex items-center gap-2 border-b border-[#eee8e2] px-4 py-3 text-sm font-semibold text-[#41514d] md:hidden"><ArrowLeft size={16} />Toutes les conversations</button><div className="border-b border-[#eee8e2] px-4 py-3.5 md:px-5 md:py-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#f4e7df] font-serif text-sm font-semibold text-[#d85b24] md:h-10 md:w-10 md:text-base">{getGuestInitials(selectedConversation.guestName)}</span><div className="min-w-0"><p className="truncate font-semibold">{hasConfirmedGuestName(selectedConversation.guestName) ? selectedConversation.guestName : 'Nom à renseigner'}</p><p className="mt-0.5 text-xs text-[#77736f]">Conversation privée</p></div></div></div><div className="h-[310px] flex-none space-y-3 overflow-y-auto p-4 md:h-auto md:flex-1 md:p-5">{conversationMessages.map((message) => <div key={message.id} className={'max-w-[88%] rounded-[1.25rem] px-4 py-3 text-sm leading-6 md:max-w-[82%] ' + (message.senderRole === 'owner' ? 'ml-auto bg-[#17232c] text-white' : 'bg-[#f5f1ed] text-[#33444b]')}><p className={'mb-1 text-[10px] font-bold uppercase tracking-[0.12em] ' + (message.senderRole === 'owner' ? 'text-white/60' : 'text-[#718087]')}>{message.senderRole === 'owner' ? 'Vous' : message.senderName} · {formatMessageDateTime(message.createdAt)}</p><p>{message.content}</p></div>)}</div><div className="border-t border-[#eee8e2] bg-white p-3 md:p-4"><div className="flex gap-2 rounded-2xl border border-[#ddd7d0] p-2"><textarea value={reply} onChange={(event) => setReply(event.target.value)} maxLength={1000} rows={2} placeholder="Répondre au voyageur…" className="min-h-11 flex-1 resize-none px-2 py-1 text-sm outline-none" /><button type="button" onClick={sendReply} disabled={sending || !reply.trim()} className="flex h-11 w-11 shrink-0 items-center justify-center self-end rounded-xl bg-[#d9694d] text-white disabled:opacity-40"><Send size={17} /></button></div></div></> : <div className="flex flex-1 flex-col items-center justify-center px-6 text-center"><MessageCircleMore className="text-[#d9694d]" size={32} /><h2 className="mt-4 text-lg font-semibold">Aucun message pour le moment</h2><p className="mt-2 max-w-sm text-sm leading-6 text-[#77736f]">Le bouton « Écrire à l’hôte » du guide ouvre une conversation privée ici.</p></div>}
           </div>
         </div>
       </section>
+      {conversationToDelete ? <div role="dialog" aria-modal="true" aria-labelledby="delete-conversation-title" className="fixed inset-0 z-[80] flex items-end bg-[#142c3f]/45 p-4 backdrop-blur-sm sm:items-center sm:justify-center"><div className="w-full max-w-md rounded-[2rem] bg-white p-6 shadow-[0_24px_70px_rgba(20,44,63,.28)]"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#fff0eb] text-[#c65a42]"><Trash2 size={20} /></span><h2 id="delete-conversation-title" className="mt-5 text-xl font-semibold text-[#1f2925]">Supprimer cette conversation ?</h2><p className="mt-3 text-sm leading-6 text-[#68716c]">Tous les messages avec {hasConfirmedGuestName(conversationToDelete.guestName) ? conversationToDelete.guestName : 'ce voyageur'} seront supprimés définitivement. Cette action est irréversible.</p><div className="mt-6 grid gap-2 sm:grid-cols-2"><button type="button" onClick={() => setConversationToDelete(null)} disabled={isDeletingConversation} className="rounded-xl border border-[#ddd7d0] px-4 py-3 text-sm font-semibold text-[#43514b] transition hover:bg-[#f7f4ef] disabled:opacity-50">Annuler</button><button type="button" onClick={() => void deleteConversation()} disabled={isDeletingConversation} className="rounded-xl bg-[#c65a42] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#ad4934] disabled:cursor-wait disabled:opacity-60">{isDeletingConversation ? 'Suppression…' : 'Supprimer définitivement'}</button></div></div></div> : null}
     </OwnerPageShell>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import OwnerSidebar from '@/components/layout/OwnerSidebar';
+import DeletePropertyButton from '@/components/owner/DeletePropertyButton';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 import { Input } from '@/components/ui/input';
@@ -13,7 +14,7 @@ import {
 } from '@/lib/owner-properties';
 import { firebaseAuth, firestore } from '@/lib/firebase/client';
 import { toOwnerProperty } from '@/lib/property-mappers';
-import { collection, doc, getDoc, onSnapshot, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, runTransaction, serverTimestamp, where } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
   ArrowRight,
@@ -39,6 +40,7 @@ export default function PropertiesPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [createdPropertyName, setCreatedPropertyName] = useState('');
   const [loadError, setLoadError] = useState('');
+  const [deletedPropertyName, setDeletedPropertyName] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -72,16 +74,20 @@ export default function PropertiesPage() {
             const missingGuides = guideChecks.filter(({ guide }) => !guide.exists());
             if (!missingGuides.length) return;
 
-            const batch = writeBatch(firestore);
-            missingGuides.forEach(({ propertyDocument }) => {
-              const propertyData = propertyDocument.data();
-              batch.set(doc(firestore, 'public_guides', propertyDocument.id), {
-                ...propertyData,
-                propertyId: propertyDocument.id,
-                publishedAt: propertyData.publishedAt ?? serverTimestamp(),
-              });
-            });
-            await batch.commit();
+            await Promise.all(missingGuides.map(({ propertyDocument }) =>
+              runTransaction(firestore, async (transaction) => {
+                const property = await transaction.get(propertyDocument.ref);
+                const guideRef = doc(firestore, 'public_guides', propertyDocument.id);
+                const guide = await transaction.get(guideRef);
+                if (!property.exists() || property.data().isDeleting === true || guide.exists()) return;
+                const propertyData = property.data();
+                transaction.set(guideRef, {
+                  ...propertyData,
+                  propertyId: propertyDocument.id,
+                  publishedAt: propertyData.publishedAt ?? serverTimestamp(),
+                });
+              }),
+            ));
           })().catch(() => {
             if (active) setLoadError('Impossible de générer les liens de vos logements. Réessayez dans un instant.');
           });
@@ -91,6 +97,11 @@ export default function PropertiesPage() {
       });
     });
     const load = () => {
+      const deletedName = window.sessionStorage.getItem('livret-property-deleted');
+      if (deletedName) {
+        setDeletedPropertyName(deletedName);
+        window.sessionStorage.removeItem('livret-property-deleted');
+      }
       const createdName = window.sessionStorage.getItem('livret-property-created');
       if (createdName) {
         setCreatedPropertyName(createdName);
@@ -138,6 +149,7 @@ export default function PropertiesPage() {
 
         <main className="mx-auto max-w-7xl px-4 py-6 pb-28 sm:px-8 sm:py-8">
           {loadError && <p role="alert" className="mb-6 rounded-2xl border border-[#efc1bd] bg-[#fdeceb] px-5 py-4 text-sm text-[#b8453c]">{loadError}</p>}
+          {deletedPropertyName && <p role="status" className="mb-6 rounded-2xl border border-[#bcdacf] bg-[#eaf5f1] px-5 py-4 text-sm text-[#286454]">Le logement « {deletedPropertyName} » et ses données associées ont été supprimés.</p>}
           {createdPropertyName && (
             <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-[#bcdacf] bg-[#eaf5f1] px-5 py-4 text-[#286454]">
               <div className="flex min-w-0 items-center gap-3">
@@ -251,7 +263,10 @@ export default function PropertiesPage() {
             {filteredProperties.length > 0 ? (
               <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {filteredProperties.map((property, index) => (
-                  <PropertyCard key={property.id} property={property} priority={index === 0} />
+                  <PropertyCard key={property.id} property={property} priority={index === 0} onDeleted={() => {
+                    setProperties((items) => items.filter((item) => item.id !== property.id));
+                    setDeletedPropertyName(property.name);
+                  }} />
                 ))}
               </div>
             ) : (
@@ -323,7 +338,7 @@ function PortfolioStat({
   );
 }
 
-function PropertyCard({ property, priority = false }: { property: OwnerProperty; priority?: boolean }) {
+function PropertyCard({ property, priority = false, onDeleted }: { property: OwnerProperty; priority?: boolean; onDeleted: () => void }) {
   const propertyImage = property.coverImage.trim() || property.gallery?.find((photo) => photo.url.trim())?.url.trim();
 
   return (
@@ -388,32 +403,35 @@ function PropertyCard({ property, priority = false }: { property: OwnerProperty;
           </span>
         </div>
 
-        <div className="mt-4 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.12em] text-[#9a948e]">
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center justify-between gap-3 sm:block">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9a948e]">
               {property.updatedAt}
             </p>
-            <p className="mt-1 text-xs font-semibold text-[#4f5455]">
+            <p className="text-xs font-semibold text-[#4f5455] sm:mt-1">
               {property.views} consultation{property.views > 1 ? 's' : ''}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
             <Link
               href={property.status === 'published' ? ROUTES.PUBLIC_BOOKLET(property.id) : `${ROUTES.PUBLIC_BOOKLET(property.id)}?preview=1`}
               target="_blank"
               rel="noreferrer"
-              className="flex h-10 items-center rounded-xl border border-[#d8d1ca] px-3 text-xs font-semibold text-[#37403d]"
+              className="flex min-w-0 items-center justify-center rounded-xl border border-[#d8d1ca] px-3 py-2.5 text-center text-xs font-semibold leading-4 text-[#37403d] transition-colors hover:bg-[#faf8f5] sm:h-10 sm:whitespace-nowrap"
             >
               {property.status === 'published' ? 'Voir le livret' : 'Aperçu du livret'}
             </Link>
             <Link
               href={ROUTES.OWNER_PROPERTY_DETAIL(property.id)}
-              className="flex h-10 items-center gap-2 rounded-xl bg-[#17232c] px-4 text-xs font-semibold text-white"
+              className="flex items-center justify-center gap-2 rounded-xl bg-[#17232c] px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-[#253844] sm:h-10 sm:whitespace-nowrap"
             >
               Gérer
               <ArrowRight size={15} />
             </Link>
           </div>
+        </div>
+        <div className="mt-4 border-t border-[#eee9e4] pt-2">
+          <DeletePropertyButton propertyId={property.id} propertyName={property.name} onDeleted={onDeleted} />
         </div>
       </div>
     </article>

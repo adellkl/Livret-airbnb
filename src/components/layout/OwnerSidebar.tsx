@@ -60,7 +60,7 @@ export default function OwnerSidebar() {
       </div>
 
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {menuItems.filter((item) => !item.proOnly || isPaid).map((item) => {
+        {menuItems.map((item) => {
           const isActive =
             pathname === item.href ||
             (item.href === ROUTES.OWNER_PROPERTIES && pathname.startsWith(`${ROUTES.OWNER_PROPERTIES}/`)) ||

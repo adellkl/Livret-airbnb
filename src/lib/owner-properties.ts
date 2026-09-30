@@ -40,7 +40,10 @@ export interface OwnerProperty {
     name: string;
     category: string;
     address: string;
+    postalCode?: string;
+    city?: string;
     note: string;
+    imageUrl?: string;
   }>;
   emergencyContact?: string;
   welcomeTitle?: string;

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 import OwnerSidebar from '@/components/layout/OwnerSidebar';
 import DashboardHeader from '@/components/layout/DashboardHeader';
@@ -27,7 +28,7 @@ import {
 } from 'lucide-react';
 
 export default function OwnerDashboard() {
-  const [properties, setProperties] = useState<Array<{ id: string; name: string; city: string; status: string; publicToken: string }>>([]);
+  const [properties, setProperties] = useState<Array<{ id: string; name: string; city: string; status: string; publicToken: string; coverImage: string }>>([]);
   const [events, setEvents] = useState<Array<{ propertyId: string; eventType: string; occurredAt: Date | null }>>([]);
   const [reviews, setReviews] = useState<Array<{ propertyId: string; score: number }>>([]);
   const [period, setPeriod] = useState(30);
@@ -53,6 +54,7 @@ export default function OwnerDashboard() {
           city: String(item.data().city ?? ''),
           status: String(item.data().status ?? 'draft'),
           publicToken: String(item.data().publicToken ?? item.id),
+          coverImage: String(item.data().coverImage ?? item.data().cover_image_url ?? ''),
         })));
       });
       unsubscribeEvents = onSnapshot(query(collection(firestore, 'guide_events'), where('ownerId', '==', user.uid)), (snapshot) => {
@@ -158,6 +160,7 @@ export default function OwnerDashboard() {
     })(),
   }));
 
+  const bookletProperty = properties.find((property) => property.status === 'draft') ?? properties[0];
   const quickActions = [
     {
       icon: Plus,
@@ -166,8 +169,8 @@ export default function OwnerDashboard() {
     },
     {
       icon: FileText,
-      label: 'Créer un livret',
-      href: ROUTES.OWNER_PROPERTY_NEW,
+      label: bookletProperty ? 'Gérer le livret' : 'Créer un livret',
+      href: bookletProperty ? ROUTES.OWNER_BOOKLET_EDITOR(bookletProperty.id) : ROUTES.OWNER_PROPERTY_NEW,
     },
     {
       icon: QrCode,
@@ -187,7 +190,10 @@ export default function OwnerDashboard() {
       <MobileNavigation type="owner" />
 
       <div className="lg:ml-[250px]">
-        <DashboardHeader title="Tableau de bord" />
+        <DashboardHeader
+          title="Tableau de bord"
+          subtitle="Suivez l’activité de vos logements et de vos livrets en un seul coup d’œil."
+        />
 
         <main className="mx-auto max-w-[1440px] overflow-x-hidden px-4 py-5 pb-24 sm:px-8 sm:py-8">
           <section className="relative mb-6 overflow-hidden rounded-[2rem] bg-[#17232c] px-6 py-7 text-white shadow-[0_22px_56px_rgba(23,35,44,.17)] sm:px-8 sm:py-9">
@@ -322,8 +328,10 @@ export default function OwnerDashboard() {
                 {propertyPerformance.length ? propertyPerformance.map((property) => (
                   <div key={property.name} className="py-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-light font-serif text-lg font-semibold text-primary">
-                        {property.name.charAt(0)}
+                      <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary-light font-serif text-lg font-semibold text-primary">
+                        {property.coverImage ? (
+                          <Image src={property.coverImage} alt={`Photo de ${property.name}`} fill unoptimized sizes="44px" className="object-cover" />
+                        ) : property.name.charAt(0)}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold">{property.name}</p>
@@ -348,14 +356,14 @@ export default function OwnerDashboard() {
               <h3 className="text-lg font-semibold text-foreground mb-6">Actions rapides</h3>
               <div className="space-y-2">
                 {quickActions.map((action, index) => (
-                  <a
+                  <Link
                     key={index}
                     href={action.href}
-                    className="flex items-center w-full h-12 px-4 rounded-lg text-foreground hover:bg-surface-soft transition-colors"
+                    className="flex h-12 w-full items-center rounded-lg px-4 text-foreground transition-colors hover:bg-surface-soft"
                   >
                     <action.icon size={18} className="mr-3 text-muted-foreground" />
                     {action.label}
-                  </a>
+                  </Link>
                 ))}
               </div>
             </div>

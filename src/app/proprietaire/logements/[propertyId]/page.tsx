@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import QRCode from 'qrcode';
 import OwnerSidebar from '@/components/layout/OwnerSidebar';
+import DeletePropertyButton from '@/components/owner/DeletePropertyButton';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 import { Button } from '@/components/ui/button';
@@ -14,7 +16,7 @@ import {
   type OwnerProperty,
 } from '@/lib/owner-properties';
 import { firebaseAuth, firestore } from '@/lib/firebase/client';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { toOwnerProperty } from '@/lib/property-mappers';
 import { 
@@ -27,7 +29,9 @@ import {
   Eye,
   Smartphone,
   Lock,
-  Calendar
+  Calendar,
+  ArrowRight,
+  Globe2,
 } from 'lucide-react';
 
 export default function PropertyDetailPage() {
@@ -44,6 +48,7 @@ export default function PropertyDetailPage() {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [isUpdatingPublication, setIsUpdatingPublication] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -91,6 +96,34 @@ export default function PropertyDetailPage() {
     window.setTimeout(() => setCopied(false), 1800);
   };
 
+  const togglePublicationStatus = async () => {
+    const user = firebaseAuth.currentUser;
+    if (!user || !ownerProperty.id || isUpdatingPublication) return;
+    const nextStatus = ownerProperty.status === 'published' ? 'draft' : 'published';
+    setIsUpdatingPublication(true);
+    setLoadError('');
+    try {
+      const batch = writeBatch(firestore);
+      const changes = {
+        status: nextStatus,
+        updatedAt: serverTimestamp(),
+        publishedAt: nextStatus === 'published' ? serverTimestamp() : null,
+      };
+      batch.set(doc(firestore, 'properties', ownerProperty.id), changes, { merge: true });
+      batch.set(doc(firestore, 'public_guides', ownerProperty.id), {
+        ...changes,
+        propertyId: ownerProperty.id,
+        ownerId: user.uid,
+      }, { merge: true });
+      await batch.commit();
+      setOwnerProperty((current) => ({ ...current, status: nextStatus }));
+    } catch {
+      setLoadError('Impossible de modifier la publication du livret. Réessayez dans un instant.');
+    } finally {
+      setIsUpdatingPublication(false);
+    }
+  };
+
   const property = {
     ...ownerProperty,
     address: `${ownerProperty.address}, ${ownerProperty.postalCode} ${ownerProperty.city}`,
@@ -124,7 +157,7 @@ export default function PropertyDetailPage() {
               <div className="mb-5 rounded-2xl bg-surface p-4 shadow-premium sm:p-6">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <h3 className="text-lg font-semibold text-foreground">Informations</h3>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={property.status === 'published' ? 'default' : 'secondary'} className={
                       property.status === 'published' 
                         ? 'bg-success-light text-success' 
@@ -139,6 +172,22 @@ export default function PropertyDetailPage() {
                     }>
                       {property.linkStatus === 'active' ? 'Lien actif' : 'Lien inactif'}
                     </Badge>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!ownerProperty.id || isUpdatingPublication}
+                      onClick={() => void togglePublicationStatus()}
+                      className={property.status === 'published'
+                        ? 'h-9 rounded-xl border border-[#d8d1ca] bg-white px-3 text-xs font-semibold text-[#3f514d] hover:bg-[#f8f5f1]'
+                        : 'h-9 rounded-xl bg-[#17232c] px-3 text-xs font-semibold text-white hover:bg-[#263944]'}
+                    >
+                      <Globe2 size={15} className="mr-1.5" />
+                      {isUpdatingPublication
+                        ? 'Mise à jour…'
+                        : property.status === 'published'
+                          ? 'Passer en brouillon'
+                          : 'Publier le livret'}
+                    </Button>
                   </div>
                 </div>
                 <div className="space-y-3 text-sm">
@@ -158,12 +207,14 @@ export default function PropertyDetailPage() {
               </div>
 
               <Tabs defaultValue="link" className="overflow-hidden rounded-2xl bg-surface shadow-premium">
-                <TabsList className="h-auto w-full overflow-hidden rounded-none border-b border-border p-0">
-                  <TabsTrigger value="link" className="min-w-0 flex-1 rounded-none px-2 py-4 text-xs data-[state=active]:border-b-2 data-[state=active]:border-primary sm:px-6 sm:text-sm">
-                    Lien d&apos;accès
+                <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-none border-b border-border bg-[#faf8f5] p-3 sm:p-4">
+                  <TabsTrigger value="link" className="h-11 min-w-0 rounded-xl border border-[#e3ddd6] bg-white px-3 text-xs font-semibold text-[#5d625f] shadow-sm transition-all hover:border-[#d85b24]/40 hover:text-[#17232c] data-active:border-[#17232c] data-active:bg-[#17232c] data-active:text-white data-active:shadow-[0_8px_18px_rgba(23,35,44,.18)] after:hidden sm:text-sm">
+                    <Copy size={15} />
+                    <span className="truncate">Lien d&apos;accès</span>
                   </TabsTrigger>
-                  <TabsTrigger value="settings" className="min-w-0 flex-1 rounded-none px-2 py-4 text-xs data-[state=active]:border-b-2 data-[state=active]:border-primary sm:px-6 sm:text-sm">
-                    Partager
+                  <TabsTrigger value="settings" className="h-11 min-w-0 rounded-xl border border-[#e3ddd6] bg-white px-3 text-xs font-semibold text-[#5d625f] shadow-sm transition-all hover:border-[#d85b24]/40 hover:text-[#17232c] data-active:border-[#d85b24] data-active:bg-[#d85b24] data-active:text-white data-active:shadow-[0_8px_18px_rgba(216,91,36,.2)] after:hidden sm:text-sm">
+                    <Share2 size={15} />
+                    <span className="truncate">Partager</span>
                   </TabsTrigger>
                 </TabsList>
 
@@ -225,15 +276,17 @@ export default function PropertyDetailPage() {
                           </div>
                           <Badge variant="secondary">Inactif</Badge>
                         </div>
-                        <div className="flex items-center justify-between p-4 bg-surface-soft rounded-lg opacity-60">
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#cfe7dc] bg-[#edf7f2] p-4">
                           <div className="flex items-center gap-3">
-                            <Calendar size={18} className="text-muted-foreground" />
+                            <Calendar size={18} className="text-[#367566]" />
                             <div>
-                              <p className="text-sm font-medium text-foreground">Date d&apos;expiration</p>
-                              <p className="text-xs text-muted-foreground">Accès limité dans le temps</p>
+                              <p className="text-sm font-medium text-foreground">Accès par réservation</p>
+                              <p className="text-xs text-muted-foreground">Un QR code unique, automatiquement expiré après le départ</p>
                             </div>
                           </div>
-                          <Badge variant="secondary">Inactif</Badge>
+                          <Link href="/proprietaire/reservations" className="inline-flex items-center gap-2 rounded-lg bg-[#367566] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#2f6558]">
+                            Gérer les séjours <ArrowRight size={14} />
+                          </Link>
                         </div>
                       </div>
                     </div>
@@ -278,6 +331,10 @@ export default function PropertyDetailPage() {
               <div className="bg-surface rounded-xl p-6 shadow-premium">
                 <h3 className="text-lg font-semibold text-foreground mb-4">Actions rapides</h3>
                 <div className="space-y-2">
+                  <DeletePropertyButton propertyId={ownerProperty.id} propertyName={ownerProperty.name} disabled={isUpdatingPublication} onDeleted={() => {
+                    window.sessionStorage.setItem('livret-property-deleted', ownerProperty.name);
+                    router.replace('/proprietaire/logements');
+                  }} />
                   <Button variant="ghost" className="w-full justify-start" onClick={() => window.location.assign(`mailto:?subject=${encodeURIComponent(`Livret d’accueil — ${ownerProperty.name}`)}&body=${encodeURIComponent(publicUrl)}`)} disabled={!ownerProperty.id}>
                     <Mail size={18} className="mr-3 text-muted-foreground" />
                     Envoyer par e-mail

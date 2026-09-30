@@ -11,9 +11,15 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId == request.auth.uid;
     }
 
+    function ownsActiveProperty(propertyId) {
+      return ownsProperty(propertyId)
+        && get(/databases/$(database)/documents/properties/$(propertyId)).data.get('isDeleting', false) != true;
+    }
+
     function ownsPropertyAfter(propertyId) {
       return signedIn()
-        && getAfter(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId == request.auth.uid;
+        && getAfter(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId == request.auth.uid
+        && getAfter(/databases/$(database)/documents/properties/$(propertyId)).data.get('isDeleting', false) != true;
     }
 
     function isAdmin() {
@@ -42,68 +48,87 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
       allow update: if signedIn()
         && resource.data.ownerId == request.auth.uid
+        && resource.data.get('isDeleting', false) != true
         && request.resource.data.ownerId == request.auth.uid;
     }
 
     match /guide_sections/{documentId} {
-      allow create: if ownsProperty(request.resource.data.propertyId);
+      allow create: if ownsActiveProperty(request.resource.data.propertyId);
       allow read: if ownsProperty(resource.data.propertyId) || isAdmin();
-      allow update, delete: if ownsProperty(resource.data.propertyId);
+      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow delete: if ownsProperty(resource.data.propertyId);
     }
 
     match /property_amenities/{documentId} {
-      allow create: if ownsProperty(request.resource.data.propertyId);
+      allow create: if ownsActiveProperty(request.resource.data.propertyId);
       allow read: if ownsProperty(resource.data.propertyId) || isAdmin();
-      allow update, delete: if ownsProperty(resource.data.propertyId);
+      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow delete: if ownsProperty(resource.data.propertyId);
     }
 
     match /equipment_guides/{documentId} {
-      allow create: if ownsProperty(request.resource.data.propertyId);
+      allow create: if ownsActiveProperty(request.resource.data.propertyId);
       allow read: if ownsProperty(resource.data.propertyId) || isAdmin();
-      allow update, delete: if ownsProperty(resource.data.propertyId);
+      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow delete: if ownsProperty(resource.data.propertyId);
     }
 
     match /property_house_rules/{documentId} {
-      allow create: if ownsProperty(request.resource.data.propertyId);
+      allow create: if ownsActiveProperty(request.resource.data.propertyId);
       allow read: if ownsProperty(resource.data.propertyId) || isAdmin();
-      allow update, delete: if ownsProperty(resource.data.propertyId);
+      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow delete: if ownsProperty(resource.data.propertyId);
     }
 
     match /property_faqs/{documentId} {
-      allow create: if ownsProperty(request.resource.data.propertyId);
+      allow create: if ownsActiveProperty(request.resource.data.propertyId);
       allow read: if ownsProperty(resource.data.propertyId) || isAdmin();
-      allow update, delete: if ownsProperty(resource.data.propertyId);
+      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow delete: if ownsProperty(resource.data.propertyId);
     }
 
     match /nearby_places/{documentId} {
-      allow create: if ownsProperty(request.resource.data.propertyId);
+      allow create: if ownsActiveProperty(request.resource.data.propertyId);
       allow read: if ownsProperty(resource.data.propertyId) || isAdmin();
-      allow update, delete: if ownsProperty(resource.data.propertyId);
+      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow delete: if ownsProperty(resource.data.propertyId);
     }
 
     match /reservations/{documentId} {
-      allow create: if ownsProperty(request.resource.data.propertyId);
+      allow create: if ownsActiveProperty(request.resource.data.propertyId);
       allow read: if ownsProperty(resource.data.propertyId) || isAdmin();
-      allow update, delete: if ownsProperty(resource.data.propertyId);
+      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow delete: if ownsProperty(resource.data.propertyId);
     }
 
     match /guide_events/{documentId} {
       allow create: if request.resource.data.eventType in ['view', 'qr_scan']
+        && get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('isDeleting', false) != true
         && request.resource.data.ownerId == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.ownerId;
       allow read: if ownsProperty(resource.data.propertyId) || isAdmin();
-      allow update, delete: if ownsProperty(resource.data.propertyId);
+      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow delete: if ownsProperty(resource.data.propertyId);
     }
 
     match /guide_reviews/{documentId} {
       allow create: if signedIn()
         && request.resource.data.propertyId is string
+        && get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('isDeleting', false) != true
         && request.resource.data.ownerId == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.ownerId
         && request.resource.data.guestId == request.auth.uid
         && request.resource.data.score is int
         && request.resource.data.score >= 1
         && request.resource.data.score <= 5;
-      allow read: if ownsProperty(resource.data.propertyId) || isAdmin();
-      allow update, delete: if ownsProperty(resource.data.propertyId);
+      // A traveller can retrieve their own rating after refreshing the guide,
+      // while the owner retains access to every rating for their property.
+      // The explicit ownerId branch also lets Firestore prove the owner query
+      // used by the dashboard (`where('ownerId', '==', uid)`) is safe.
+      allow read: if (signedIn() && resource.data.ownerId == request.auth.uid)
+        || ownsProperty(resource.data.propertyId)
+        || isAdmin()
+        || (signedIn() && resource.data.guestId == request.auth.uid);
+      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow delete: if ownsProperty(resource.data.propertyId);
     }
 
     match /guide_messages/{messageId} {
@@ -111,6 +136,7 @@ service cloud.firestore {
       // own conversation while the property owner can moderate every message.
       allow create: if signedIn()
         && request.resource.data.propertyId is string
+        && get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('isDeleting', false) != true
         && request.resource.data.ownerId == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.ownerId
         && request.resource.data.content is string
         && request.resource.data.content.size() > 0
@@ -124,21 +150,31 @@ service cloud.firestore {
       // `where('ownerId', '==', uid)` query used by the owner inbox.
       allow read: if (signedIn() && resource.data.ownerId == request.auth.uid)
         || (signedIn() && resource.data.guestId == request.auth.uid);
-      allow update, delete: if ownsProperty(resource.data.propertyId);
+      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow delete: if ownsProperty(resource.data.propertyId);
     }
 
-    match /public_guides/{propertyId} {
+    match /public_guides/{guideToken} {
       // A draft may be prepared in this mirror, but it must never be readable
-      // through a public URL until its owner explicitly publishes it.
-      allow get: if resource.data.status == 'published'
-        || ownsProperty(propertyId)
+      // through a public URL until its owner explicitly publishes it. A guide
+      // issued for a reservation also stops being readable after its checkout.
+      allow list: if ownsProperty(resource.data.propertyId);
+      allow get: if ownsProperty(guideToken) || (exists(/databases/$(database)/documents/properties/$(resource.data.propertyId))
+          && get(/databases/$(database)/documents/properties/$(resource.data.propertyId)).data.get('isDeleting', false) != true
+          && resource.data.status == 'published'
+          && (!resource.data.keys().hasAll(['accessExpiresAt'])
+            || resource.data.accessExpiresAt == null
+            || request.time < resource.data.accessExpiresAt))
+        || ownsProperty(resource.data.propertyId)
         || isAdmin();
-      // Supports both initial property creation and backfilling guides for
-      // properties that existed before public links were introduced.
+      // A reservation gets its own random guide token while still being tied
+      // to the owner's real property through `propertyId`.
       allow create: if signedIn()
         && request.resource.data.ownerId == request.auth.uid
-        && (ownsProperty(propertyId) || ownsPropertyAfter(propertyId));
-      allow update, delete: if ownsProperty(propertyId);
+        && (ownsActiveProperty(request.resource.data.propertyId)
+          || ownsPropertyAfter(request.resource.data.propertyId));
+      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow delete: if ownsProperty(resource.data.propertyId);
     }
 
     match /{document=**} {

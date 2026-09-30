@@ -105,6 +105,15 @@ const checkoutTasks = [
   'Remettre les clés dans la boîte',
 ];
 
+const guideCopy = {
+  fr: {
+    privateGuide: 'Livret privé', yourGuide: 'Votre guide privé', yourHost: 'Votre hôte', welcomes: 'vous accueille', stayStarts: 'Votre séjour commence ici', yourHome: 'Votre logement', wifi: 'Wi-Fi de l’appartement', connect: 'Connectez-vous en un geste', journey: 'Votre parcours', arrivalDeparture: 'Arrivée & départ', allInstructions: 'Toutes les instructions', prepareDeparture: 'Préparer mon départ', nearbySelection: 'La sélection de', bestNeighbourhood: 'Le meilleur du quartier', nearbyDescription: 'Des adresses choisies avec soin, toutes accessibles à pied.', directions: 'Itinéraire', booklet: 'Le livret', nearby: 'À proximité', privateMessages: 'Messagerie privée', backToBooklet: 'Retour au livret', firstMessage: 'Envoyez un premier message', writeMessage: 'Écrivez votre message…', exchangesPrivate: 'Vos échanges restent privés entre vous et votre hôte.', arrival: 'Arrivée', departure: 'Départ', yourStay: 'Votre séjour', chooseLanguage: 'Choisir la langue', languageFrench: 'Français', languageEnglish: 'English',
+  },
+  en: {
+    privateGuide: 'Private guide', yourGuide: 'Your private guide', yourHost: 'Your host', welcomes: 'welcomes you', stayStarts: 'Your stay starts here', yourHome: 'Your home', wifi: 'Apartment Wi-Fi', connect: 'Connect in one tap', journey: 'Your stay', arrivalDeparture: 'Arrival & departure', allInstructions: 'All instructions', prepareDeparture: 'Prepare my departure', nearbySelection: 'Selected by', bestNeighbourhood: 'The best in the neighbourhood', nearbyDescription: 'Carefully selected places, all within walking distance.', directions: 'Directions', booklet: 'Guide', nearby: 'Nearby', privateMessages: 'Private messages', backToBooklet: 'Back to guide', firstMessage: 'Send your first message', writeMessage: 'Write your message…', exchangesPrivate: 'Your conversations remain private between you and your host.', arrival: 'Arrival', departure: 'Departure', yourStay: 'Your stay', chooseLanguage: 'Choose language', languageFrench: 'French', languageEnglish: 'English',
+  },
+} as const;
+
 export default function PublicBookletPage() {
   const params = useParams<{ secureToken: string }>();
   const [property, setProperty] = useState<OwnerProperty>(
@@ -121,6 +130,8 @@ export default function PublicBookletPage() {
   const [instructionsOpen, setInstructionsOpen] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [headerScrolled, setHeaderScrolled] = useState(false);
+  const [language, setLanguage] = useState<'fr' | 'en'>('fr');
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState<
     EquipmentCard | null
   >(null);
@@ -137,6 +148,7 @@ export default function PublicBookletPage() {
   const [selectedRating, setSelectedRating] = useState(0);
   const [ratingError, setRatingError] = useState('');
   const [isSendingRating, setIsSendingRating] = useState(false);
+  const [isLoadingRating, setIsLoadingRating] = useState(false);
   const equipmentGuideRef = useRef<HTMLDivElement>(null);
   const nearbyPlacesRef = useRef<HTMLDivElement>(null);
   const heroSectionRef = useRef<HTMLElement>(null);
@@ -147,12 +159,13 @@ export default function PublicBookletPage() {
   const blockingOverlayOpen = equipmentGuideOpen || chatOpen || instructionsOpen;
   const departureComplete = checkedTasks.length === checkoutTasks.length;
   const departureProgress = Math.round((checkedTasks.length / checkoutTasks.length) * 100);
+  const copy = guideCopy[language];
   const propertyNearbyPlaces = (property.nearbyPlaces ?? []).map((place, index) => ({
     ...place,
     filter: place.category || 'Autre',
     distance: place.address || 'Adresse recommandée',
     rating: place.note || '★',
-    image: property.gallery?.[index]?.url || getCityVisual(property).image,
+    image: property.nearbyPlaces?.[index]?.imageUrl || property.gallery?.[index]?.url || getCityVisual(property).image,
   }));
   const guideNearbyFilters = ['Tout', ...Array.from(new Set(propertyNearbyPlaces.map((place) => place.filter)))];
   const visibleNearbyPlaces =
@@ -199,13 +212,17 @@ export default function PublicBookletPage() {
           return;
         }
       const data = guide.data();
-      const savedRating = Number(window.localStorage.getItem(`monlivret:rating:${guide.id}`));
-      setSelectedRating(Number.isInteger(savedRating) && savedRating >= 1 && savedRating <= 5 ? savedRating : 0);
+      const savedLanguage = window.localStorage.getItem(`monlivret:language:${params.secureToken}`);
+      const preferredLanguage = savedLanguage === 'en' || savedLanguage === 'fr'
+        ? savedLanguage
+        : data.language === 'en' ? 'en' : 'fr';
+      setLanguage(preferredLanguage);
+      document.documentElement.lang = preferredLanguage;
       setRatingError('');
       setOwnerId(String(data.ownerId ?? ''));
       setProperty({
         ...DEFAULT_OWNER_PROPERTIES[0],
-        id: guide.id,
+        id: String(data.propertyId ?? guide.id),
         name: String(data.name ?? ''), type: String(data.type ?? ''), address: String(data.address ?? ''),
         city: String(data.city ?? ''), postalCode: String(data.postalCode ?? ''), capacity: Number(data.capacity ?? 0),
         checkIn: String(data.checkIn ?? ''), checkOut: String(data.checkOut ?? ''), wifiName: String(data.wifiName ?? ''),
@@ -218,7 +235,7 @@ export default function PublicBookletPage() {
         equipmentGuides: Array.isArray(data.equipmentGuides) ? data.equipmentGuides.map((item) => ({ name: String(item?.name ?? ''), instructions: String(item?.instructions ?? ''), imageUrl: String(item?.imageUrl ?? '') })) : [],
         houseRules: Array.isArray(data.houseRules) ? data.houseRules.map(String) : [],
         faqItems: Array.isArray(data.faqItems) ? data.faqItems.map(String) : [],
-        nearbyPlaces: Array.isArray(data.nearbyPlaces) ? data.nearbyPlaces.map((place) => ({ name: String(place?.name ?? ''), category: String(place?.category ?? ''), address: String(place?.address ?? ''), note: String(place?.note ?? '') })) : [],
+        nearbyPlaces: Array.isArray(data.nearbyPlaces) ? data.nearbyPlaces.map((place) => ({ name: String(place?.name ?? ''), category: String(place?.category ?? ''), address: String(place?.address ?? ''), postalCode: String(place?.postalCode ?? ''), city: String(place?.city ?? ''), note: String(place?.note ?? ''), imageUrl: String(place?.imageUrl ?? '') })) : [],
         gallery: Array.isArray(data.gallery) ? data.gallery.map((photo) => ({ url: String(photo?.url ?? ''), caption: String(photo?.caption ?? '') })).filter((photo) => photo.url) : [],
         welcomeSubtitle: String(data.welcomeSubtitle ?? ''),
         hostMessage: String(data.hostMessage ?? ''),
@@ -237,6 +254,37 @@ export default function PublicBookletPage() {
     void loadGuide();
     return () => { active = false; };
   }, [params.secureToken]);
+
+  useEffect(() => {
+    if (!property.id || !ownerId) return;
+
+    let active = true;
+    const loadExistingRating = async () => {
+      setIsLoadingRating(true);
+      try {
+        await firebaseAuthReady;
+        const currentUser = firebaseAuth.currentUser ?? (await signInAnonymously(firebaseAuth)).user;
+        const ratingDocument = await getDoc(doc(firestore, 'guide_reviews', `${property.id}_${currentUser.uid}`));
+        const savedScore = Number(ratingDocument.data()?.score ?? 0);
+        if (active) setSelectedRating(Number.isInteger(savedScore) && savedScore >= 1 && savedScore <= 5 ? savedScore : 0);
+      } catch {
+        // The rating remains available even if this first read is temporarily unavailable.
+        if (active) setSelectedRating(0);
+      } finally {
+        if (active) setIsLoadingRating(false);
+      }
+    };
+
+    void loadExistingRating();
+    return () => { active = false; };
+  }, [ownerId, property.id]);
+
+  const selectLanguage = (nextLanguage: 'fr' | 'en') => {
+    setLanguage(nextLanguage);
+    setLanguageMenuOpen(false);
+    window.localStorage.setItem(`monlivret:language:${params.secureToken}`, nextLanguage);
+    document.documentElement.lang = nextLanguage;
+  };
 
   useEffect(() => {
     if (!chatOpen || !property.id) return;
@@ -499,7 +547,7 @@ export default function PublicBookletPage() {
   };
 
   const submitRating = async (score: number) => {
-    if (!ownerId || !property.id || isSendingRating || selectedRating) return;
+    if (!ownerId || !property.id || isSendingRating || isLoadingRating || selectedRating) return;
     setIsSendingRating(true);
     setRatingError('');
     try {
@@ -507,12 +555,13 @@ export default function PublicBookletPage() {
       const currentUser = firebaseAuth.currentUser ?? (await signInAnonymously(firebaseAuth)).user;
       await setDoc(doc(firestore, 'guide_reviews', `${property.id}_${currentUser.uid}`), {
         propertyId: property.id,
+        propertyName: property.name,
         ownerId,
         guestId: currentUser.uid,
         score,
+        guideToken: String(params.secureToken),
         createdAt: serverTimestamp(),
       });
-      window.localStorage.setItem(`monlivret:rating:${property.id}`, String(score));
       setSelectedRating(score);
     } catch {
       setRatingError('Votre avis n’a pas pu être enregistré. Réessayez dans un instant.');
@@ -656,9 +705,13 @@ export default function PublicBookletPage() {
                       headerScrolled ? 'text-[#142c3f]' : 'text-white'
                     }`}
                   >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#d9694d] font-serif text-lg italic text-white shadow-[0_7px_18px_rgba(217,105,77,.28)]">
-                      L
-                    </span>
+                    <Image
+                      src="/icon.png"
+                      alt="Mon Livret"
+                      width={36}
+                      height={36}
+                      className="h-9 w-9 shrink-0 rounded-xl shadow-[0_7px_18px_rgba(8,24,34,.2)]"
+                    />
                     <span className="min-w-0">
                       <span className="block max-w-[205px] truncate font-serif text-[15px] font-semibold leading-tight">
                         {headerScrolled ? property.name : 'Mon Livret'}
@@ -668,27 +721,34 @@ export default function PublicBookletPage() {
                           headerScrolled ? 'text-[#6f7c84]' : 'text-white/58'
                         }`}
                       >
-                        {headerScrolled ? `${property.city} · Livret privé` : 'Votre guide privé'}
+                        {headerScrolled ? `${property.city} · ${copy.privateGuide}` : copy.yourGuide}
                       </span>
                     </span>
                   </button>
 
-                  <button
-                    type="button"
-                    aria-label="Choisir la langue"
-                    className={`flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition-all duration-300 ${
-                      headerScrolled
-                        ? 'border-[#142c3f]/8 bg-[#f3eee8] text-[#172b35]'
-                        : 'border-white/12 bg-white/10 text-white hover:bg-white/16'
-                    }`}
-                  >
-                    <span aria-hidden="true">{property.language === 'en' ? '🇬🇧' : '🇫🇷'}</span>
-                    {property.language === 'en' ? 'EN' : 'FR'}
-                    <ChevronDown
-                      size={13}
-                      className={headerScrolled ? 'text-[#6e777b]' : 'text-white/60'}
-                    />
-                  </button>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      aria-label={copy.chooseLanguage}
+                      aria-expanded={languageMenuOpen}
+                      onClick={() => setLanguageMenuOpen((open) => !open)}
+                      className={`flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition-all duration-300 ${
+                        headerScrolled
+                          ? 'border-[#142c3f]/8 bg-[#f3eee8] text-[#172b35]'
+                          : 'border-white/12 bg-white/10 text-white hover:bg-white/16'
+                      }`}
+                    >
+                      <span aria-hidden="true">{language === 'en' ? '🇬🇧' : '🇫🇷'}</span>
+                      {language === 'en' ? 'EN' : 'FR'}
+                      <ChevronDown size={13} className={headerScrolled ? 'text-[#6e777b]' : 'text-white/60'} />
+                    </button>
+                    {languageMenuOpen && (
+                      <div className="absolute right-0 top-11 z-[130] w-40 overflow-hidden rounded-xl border border-[#142c3f]/10 bg-white p-1.5 text-[#142c3f] shadow-[0_14px_34px_rgba(20,44,63,.18)]">
+                        <button type="button" onClick={() => selectLanguage('fr')} className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-xs font-semibold ${language === 'fr' ? 'bg-[#f3eee8] text-[#d9694d]' : 'hover:bg-[#f8f6f2]'}`}><span>🇫🇷 {copy.languageFrench}</span>{language === 'fr' && <Check size={14} />}</button>
+                        <button type="button" onClick={() => selectLanguage('en')} className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-xs font-semibold ${language === 'en' ? 'bg-[#f3eee8] text-[#d9694d]' : 'hover:bg-[#f8f6f2]'}`}><span>🇬🇧 {copy.languageEnglish}</span>{language === 'en' && <Check size={14} />}</button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -702,15 +762,15 @@ export default function PublicBookletPage() {
                   </div>
                   <div>
                     <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#ffd0b8]">
-                      Votre hôte
+                      {copy.yourHost}
                     </p>
                     <p className="mt-0.5 text-xs font-semibold text-white">
-                      {hostFirstName} vous accueille
+                      {hostFirstName} {copy.welcomes}
                     </p>
                   </div>
                 </div>
                 <p className="mt-5 text-[9px] font-bold uppercase tracking-[0.22em] text-white/66">
-                  Votre séjour commence ici
+                  {copy.stayStarts}
                 </p>
                 <h1 className="mt-2 max-w-[470px] font-serif font-semibold leading-[0.88] tracking-[-0.055em] drop-shadow-[0_8px_28px_rgba(0,0,0,.35)]">
                   <span className="block text-[clamp(2.75rem,11vw,4.4rem)] text-white">
@@ -731,7 +791,7 @@ export default function PublicBookletPage() {
               >
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3.5">
                   <div className="min-w-0">
-                    <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/48">Votre logement</p>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/48">{copy.yourHome}</p>
                     <p className="mt-1 break-words font-serif text-[17px] font-semibold leading-tight text-white">{property.name}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] font-medium uppercase tracking-[0.1em] text-white/65">
                       <span>{property.type || 'Logement'}</span>
@@ -774,10 +834,10 @@ export default function PublicBookletPage() {
                 </span>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[#367566]">
-                    Wi-Fi de l’appartement
+                    {copy.wifi}
                   </p>
                   <h2 className="mt-1 text-2xl font-semibold text-[#142c3f]">
-                    Connectez-vous en un geste
+                    {copy.connect}
                   </h2>
                 </div>
               </div>
@@ -828,10 +888,10 @@ export default function PublicBookletPage() {
           <section className="px-5 py-7">
             <div className="mb-5">
               <p className="text-sm font-medium text-[#8b8f90]">
-                Votre parcours
+                {copy.journey}
               </p>
               <h2 className="mt-1 whitespace-nowrap text-[clamp(1.75rem,8vw,2rem)] font-semibold tracking-[-0.035em]">
-                Arrivée & départ
+                {copy.arrivalDeparture}
               </h2>
             </div>
 
@@ -896,7 +956,7 @@ export default function PublicBookletPage() {
                     onClick={() => setInstructionsOpen(true)}
                     className="flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl bg-[#f3eee8] px-2 py-3 text-[13px] font-semibold"
                   >
-                    Toutes les instructions
+                    {copy.allInstructions}
                     <ArrowRight size={15} className="shrink-0" />
                   </button>
                   <button
@@ -904,13 +964,38 @@ export default function PublicBookletPage() {
                     onClick={startDeparture}
                     className="flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl bg-[#102a3d] px-2 py-3 text-[13px] font-semibold text-white"
                   >
-                    Préparer mon départ
+                    {copy.prepareDeparture}
                     <Check size={15} className="shrink-0" />
                   </button>
                 </div>
               </div>
             </div>
           </section>
+
+          {property.houseRules?.some((rule) => rule.trim()) && (
+            <section className="px-5 py-7">
+              <div className="overflow-hidden rounded-[2rem] border border-[#ead9cf] bg-[#fffaf7] shadow-[0_14px_40px_rgba(103,65,44,0.07)]">
+                <div className="flex items-start gap-4 border-b border-[#ead9cf] bg-[#f7e8df] p-5">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[1.2rem] bg-[#d9694d] text-white shadow-[0_8px_18px_rgba(217,105,77,0.24)]">
+                    <Home size={21} />
+                  </span>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b85a40]">Pour bien vivre ensemble</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-[-0.03em] text-[#142c3f]">Règles de la maison</h2>
+                    <p className="mt-1 text-sm leading-5 text-[#69777d]">Quelques repères simples pour profiter pleinement du logement.</p>
+                  </div>
+                </div>
+                <div className="p-3">
+                  {property.houseRules.filter((rule) => rule.trim()).map((rule, index) => (
+                    <div key={`${rule}-${index}`} className="flex items-center gap-3 rounded-[1.15rem] px-3 py-3.5 transition hover:bg-white">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f4e4dc] text-xs font-bold text-[#c86145]">{String(index + 1).padStart(2, '0')}</span>
+                      <p className="text-sm font-medium leading-5 text-[#31444b]">{rule}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
 
           {property.showMap !== false && (
           <section className="px-5 py-5">
@@ -1014,7 +1099,7 @@ export default function PublicBookletPage() {
               <div className="relative p-5 pt-4">
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/75">
-                    Votre hôte sur place
+                    {copy.yourHost}
                   </p>
                   <span className="flex shrink-0 items-center gap-1 rounded-full bg-white/12 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur">
                     <BadgeCheck size={13} className="text-[#9ed6c7]" />
@@ -1027,7 +1112,7 @@ export default function PublicBookletPage() {
                     {hostAvatar ? <Image src={hostAvatar} alt={`Portrait de ${property.hostName}`} fill unoptimized sizes="82px" className="object-cover" /> : <span className="flex h-full w-full items-center justify-center bg-[#d9694d] font-serif text-3xl italic text-white" aria-label={`Initiale de ${property.hostName}`}>{hostInitial}</span>}
                   </div>
                   <div className="mt-4 min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8b8f90]">Votre hôte</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8b8f90]">{copy.yourHost}</p>
                     <h2 className="mt-1 truncate text-xl font-semibold tracking-[-0.02em] text-[#142c3f]">{property.hostName}</h2>
                     <p className="mt-1 truncate text-xs text-[#718087]">À votre écoute à {property.city}</p>
                   </div>
@@ -1244,22 +1329,22 @@ export default function PublicBookletPage() {
           ) : null}
 
           <section id="nearby" className="scroll-mt-24 overflow-hidden bg-white py-10 text-[#142c3f]">
-            <div className="mb-5 px-5">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#d9694d]">La sélection de {hostFirstName}</p>
-                  <h2 className="mt-2 font-serif text-[2rem] font-semibold tracking-[-0.035em]">
-                    Le meilleur du quartier
+            <div className="mb-6 px-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[9px] font-bold uppercase leading-4 tracking-[0.14em] text-[#d9694d] min-[390px]:text-[10px] min-[390px]:tracking-[0.18em]">{copy.nearbySelection} {hostFirstName}</p>
+                  <h2 className="mt-2 max-w-[19rem] font-serif text-[clamp(2rem,9.2vw,2.7rem)] font-semibold leading-[0.96] tracking-[-0.045em]">
+                    {copy.bestNeighbourhood}
                   </h2>
                 </div>
-                <span className="mb-1 flex h-9 w-9 items-center justify-center rounded-full border border-[#142c3f]/9 bg-[#f3eee8] text-xs font-semibold text-[#64716b]">
+                <span className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#142c3f]/9 bg-[#f3eee8] text-xs font-semibold text-[#64716b]">
                   {visibleNearbyPlaces.length}
                 </span>
               </div>
-              <p className="mt-3 max-w-sm text-sm leading-6 text-[#6f7c84]">
-                Des adresses choisies avec soin, toutes accessibles à pied.
+              <p className="mt-4 max-w-md text-[15px] leading-6 text-[#6f7c84]">
+                {copy.nearbyDescription}
               </p>
-              <div className="guest-scrollbar mt-4 flex gap-2 overflow-x-auto">
+              <div className="guest-scrollbar -mr-5 mt-5 flex gap-2 overflow-x-auto pr-5">
                 {guideNearbyFilters.map(
                   (category) => (
                     <button
@@ -1287,14 +1372,14 @@ export default function PublicBookletPage() {
               {visibleNearbyPlaces.map((place, index) => (
                 <article
                   key={place.name}
-                  className="group relative h-[370px] w-[292px] shrink-0 snap-center animate-[fadeIn_280ms_ease-out] overflow-hidden rounded-[1.75rem] border border-white/12 bg-[#18384e] shadow-[0_20px_50px_rgba(2,13,20,.28)]"
+                  className="group relative h-[clamp(340px,84vw,410px)] w-[calc(100vw-3rem)] max-w-[360px] shrink-0 snap-center animate-[fadeIn_280ms_ease-out] overflow-hidden rounded-[1.75rem] border border-white/12 bg-[#18384e] shadow-[0_20px_50px_rgba(2,13,20,.28)]"
                 >
                   <Image
                     src={place.image}
                     alt={place.name}
                     fill
                     unoptimized
-                    sizes="292px"
+                    sizes="(max-width: 560px) calc(100vw - 48px), 360px"
                     className="object-cover transition duration-700 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-gradient-to-b from-black/18 via-transparent to-[#071923]/95" />
@@ -1323,7 +1408,7 @@ export default function PublicBookletPage() {
                         rel="noreferrer"
                         className="flex h-10 items-center gap-2 rounded-full border border-white/14 bg-white/10 px-4 text-xs font-semibold text-white backdrop-blur transition hover:bg-white hover:text-[#102a3d]"
                       >
-                        Itinéraire
+                        {copy.directions}
                         <ExternalLink size={13} />
                       </a>
                     </div>
@@ -1615,10 +1700,10 @@ export default function PublicBookletPage() {
         )}
 
         {instructionsOpen && createPortal(
-          <div role="dialog" aria-modal="true" aria-label="Toutes les instructions" className="fixed inset-0 z-[120] mx-auto flex max-w-[560px] flex-col bg-[#fbfaf8]">
+          <div role="dialog" aria-modal="true" aria-label={copy.allInstructions} className="fixed inset-0 z-[120] mx-auto flex max-w-[560px] flex-col bg-[#fbfaf8]">
             <div className="flex items-center justify-between border-b border-[#142c3f]/8 bg-white px-5 py-3 shadow-sm">
               <button type="button" onClick={() => setInstructionsOpen(false)} aria-label="Fermer les instructions" className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f3eee8] text-[#142c3f] transition hover:bg-[#e9e3dc]"><ArrowLeft size={19} /></button>
-              <div className="min-w-0 text-center"><p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#d9694d]">Votre séjour</p><h2 className="mt-0.5 text-sm font-semibold text-[#142c3f]">Toutes les instructions</h2></div>
+              <div className="min-w-0 text-center"><p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#d9694d]">{copy.yourStay}</p><h2 className="mt-0.5 text-sm font-semibold text-[#142c3f]">{copy.allInstructions}</h2></div>
               <button type="button" onClick={() => setInstructionsOpen(false)} aria-label="Fermer" className="flex h-10 w-10 items-center justify-center rounded-full text-[#718087]"><X size={19} /></button>
             </div>
             <div className="guest-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6">
@@ -1653,9 +1738,9 @@ export default function PublicBookletPage() {
           <div role="dialog" aria-modal="true" aria-label={`Messagerie avec ${hostFirstName}`} className="fixed inset-0 z-[120] mx-auto flex max-w-[560px] flex-col bg-[#fbfaf8]">
             <div className="relative grid grid-cols-[40px_minmax(0,1fr)_40px] items-center overflow-hidden bg-[#102a3d] px-5 py-4 text-white shadow-[0_8px_24px_rgba(16,42,61,0.2)]">
               <div className="pointer-events-none absolute -right-7 -top-10 h-28 w-28 rounded-full border border-white/10" />
-              <button type="button" onClick={() => setChatOpen(false)} aria-label="Retour au livret" className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"><ArrowLeft size={19} /></button>
+              <button type="button" onClick={() => setChatOpen(false)} aria-label={copy.backToBooklet} className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"><ArrowLeft size={19} /></button>
               <div className="min-w-0 px-3 text-center">
-                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#ef9a78]">Messagerie privée</p>
+                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#ef9a78]">{copy.privateMessages}</p>
                 <p className="mt-0.5 truncate text-sm font-semibold">{property.hostName || 'Votre propriétaire'}</p>
                 <p className="truncate text-[10px] font-medium uppercase tracking-[0.12em] text-white/55">{property.name}</p>
               </div>
@@ -1663,11 +1748,11 @@ export default function PublicBookletPage() {
             </div>
             <div className="guest-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-5">
               {chatConnecting && <p className="text-center text-sm text-[#718087]">Connexion sécurisée à la messagerie…</p>}
-              {!guestNameConfirmed && <div className="mx-auto mt-5 max-w-sm rounded-[1.5rem] border border-[#dbe6e1] bg-white p-5 text-center shadow-[0_10px_24px_rgba(20,44,63,0.04)]"><p className="text-sm font-semibold text-[#173b50]">Avant de commencer</p><p className="mt-1 text-xs leading-5 text-[#718087]">Indiquez votre prénom et nom : votre hôte saura immédiatement qui lui écrit.</p><input value={guestName} onChange={(event) => { setGuestName(event.target.value); setGuestNameConfirmed(false); setChatError(''); }} onKeyDown={(event) => { if (event.key === 'Enter') confirmGuestName(); }} maxLength={80} autoComplete="name" placeholder="Ex. Camille Martin" className="mt-4 h-11 w-full rounded-xl border border-[#d8e0dc] bg-[#f7faf8] px-3 text-sm text-[#173b50] outline-none placeholder:text-[#98a0a2] focus:border-[#367566]" /><button type="button" onClick={confirmGuestName} disabled={!guestName.trim()} className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#367566] px-4 text-sm font-semibold text-white transition hover:bg-[#2f695b] disabled:cursor-not-allowed disabled:opacity-40"><Check size={16} /> Confirmer mon identité</button></div>}
-              {!chatMessages.length && <div className="mx-auto mt-8 max-w-sm rounded-[1.75rem] border border-[#dbe6e1] bg-[#f1f7f4] p-6 text-center shadow-[0_12px_28px_rgba(20,44,63,0.05)]"><span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#367566] text-white shadow-[0_8px_18px_rgba(54,117,102,0.22)]"><MessageCircle size={21} /></span><p className="mt-4 text-base font-semibold text-[#173b50]">Envoyez un premier message</p><p className="mt-2 text-sm leading-6 text-[#62767a]">Dites bonjour à {hostFirstName}. Votre hôte recevra votre message directement dans son espace privé.</p><div className="mt-4 flex flex-wrap justify-center gap-2"><button type="button" onClick={() => setChatDraft('Bonjour, j’ai une question concernant mon séjour.')} className="rounded-full border border-[#d0e1da] bg-white px-3 py-2 text-xs font-semibold text-[#367566]">J’ai une question</button><button type="button" onClick={() => setChatDraft('Bonjour, je viens d’arriver au logement.')} className="rounded-full border border-[#d0e1da] bg-white px-3 py-2 text-xs font-semibold text-[#367566]">Je viens d’arriver</button></div></div>}
+              {!guestNameConfirmed && <div className="mx-auto mt-5 max-w-sm rounded-[1.5rem] border border-[#dbe6e1] bg-white p-5 text-center shadow-[0_10px_24px_rgba(20,44,63,0.04)]"><p className="text-sm font-semibold text-[#173b50]">Avant de commencer</p><p className="mt-1 text-xs leading-5 text-[#718087]">Indiquez votre prénom et nom : votre hôte saura immédiatement qui lui écrit.</p><input value={guestName} onChange={(event) => { setGuestName(event.target.value); setGuestNameConfirmed(false); setChatError(''); }} onKeyDown={(event) => { if (event.key === 'Enter') confirmGuestName(); }} maxLength={80} autoComplete="name" placeholder="Ex. Camille Martin" className="mt-4 h-11 w-full rounded-xl border border-[#d8e0dc] bg-[#f7faf8] px-3 text-base text-[#173b50] outline-none placeholder:text-[#98a0a2] focus:border-[#367566] sm:text-sm" /><button type="button" onClick={confirmGuestName} disabled={!guestName.trim()} className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#367566] px-4 text-sm font-semibold text-white transition hover:bg-[#2f695b] disabled:cursor-not-allowed disabled:opacity-40"><Check size={16} /> Confirmer mon identité</button></div>}
+              {!chatMessages.length && <div className="mx-auto mt-8 max-w-sm rounded-[1.75rem] border border-[#dbe6e1] bg-[#f1f7f4] p-6 text-center shadow-[0_12px_28px_rgba(20,44,63,0.05)]"><span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#367566] text-white shadow-[0_8px_18px_rgba(54,117,102,0.22)]"><MessageCircle size={21} /></span><p className="mt-4 text-base font-semibold text-[#173b50]">{copy.firstMessage}</p><p className="mt-2 text-sm leading-6 text-[#62767a]">{language === 'en' ? `Say hello to ${hostFirstName}. Your host will receive your message directly in their private space.` : `Dites bonjour à ${hostFirstName}. Votre hôte recevra votre message directement dans son espace privé.`}</p><div className="mt-4 flex flex-wrap justify-center gap-2"><button type="button" onClick={() => setChatDraft(language === 'en' ? 'Hello, I have a question about my stay.' : 'Bonjour, j’ai une question concernant mon séjour.')} className="rounded-full border border-[#d0e1da] bg-white px-3 py-2 text-xs font-semibold text-[#367566]">{language === 'en' ? 'I have a question' : 'J’ai une question'}</button><button type="button" onClick={() => setChatDraft(language === 'en' ? 'Hello, I have just arrived at the property.' : 'Bonjour, je viens d’arriver au logement.')} className="rounded-full border border-[#d0e1da] bg-white px-3 py-2 text-xs font-semibold text-[#367566]">{language === 'en' ? 'I just arrived' : 'Je viens d’arriver'}</button></div></div>}
               {chatMessages.map((message) => <div key={message.id} className={`max-w-[85%] rounded-[1.25rem] px-4 py-3 text-sm leading-6 ${message.senderRole === 'guest' ? 'ml-auto bg-[#102a3d] text-white' : 'bg-white text-[#31434c] shadow-sm'}`}><p className={`mb-1 text-[10px] font-bold uppercase tracking-[0.12em] ${message.senderRole === 'guest' ? 'text-white/60' : 'text-[#718087]'}`}>{message.senderRole === 'guest' ? 'Vous' : message.senderName || hostFirstName} · {formatMessageDateTime(message.createdAt)}</p><p>{message.content}</p></div>)}
             </div>
-            <div className="border-t border-[#142c3f]/8 bg-white p-4"><div className="flex gap-2 rounded-[1.35rem] border border-[#d8e0dc] bg-[#f7faf8] p-2 shadow-[0_8px_20px_rgba(20,44,63,0.04)]"><textarea value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} maxLength={1000} rows={2} placeholder="Écrivez votre message…" className="min-h-12 flex-1 resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-[#98a0a2]" /><button type="button" onClick={sendMessage} disabled={chatConnecting || sendingMessage || !chatDraft.trim() || !guestId} aria-label="Envoyer le message" className="flex h-11 w-11 shrink-0 items-center justify-center self-end rounded-xl bg-[#d9694d] text-white shadow-[0_7px_15px_rgba(217,105,77,0.25)] transition hover:bg-[#c9532d] disabled:opacity-40"><Send size={17} /></button></div><p className="mt-2 text-center text-[10px] text-[#8a9795]">Vos échanges restent privés entre vous et votre hôte.</p>{chatError && <p role="alert" className="mt-2 text-xs text-[#b8453c]">{chatError}</p>}</div>
+            <div className="border-t border-[#142c3f]/8 bg-white p-4"><div className="flex gap-2 rounded-[1.35rem] border border-[#d8e0dc] bg-[#f7faf8] p-2 shadow-[0_8px_20px_rgba(20,44,63,0.04)]"><textarea value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} maxLength={1000} rows={2} placeholder={copy.writeMessage} className="min-h-12 flex-1 resize-none bg-transparent px-2 py-1 text-base outline-none placeholder:text-[#98a0a2] sm:text-sm" /><button type="button" onClick={sendMessage} disabled={chatConnecting || sendingMessage || !chatDraft.trim() || !guestId} aria-label={copy.writeMessage} className="flex h-11 w-11 shrink-0 items-center justify-center self-end rounded-xl bg-[#d9694d] text-white shadow-[0_7px_15px_rgba(217,105,77,0.25)] transition hover:bg-[#c9532d] disabled:opacity-40"><Send size={17} /></button></div><p className="mt-2 text-center text-[10px] text-[#8a9795]">{copy.exchangesPrivate}</p>{chatError && <p role="alert" className="mt-2 text-xs text-[#b8453c]">{chatError}</p>}</div>
           </div>,
           document.body,
         )}
@@ -1684,7 +1769,7 @@ export default function PublicBookletPage() {
               }`}
             >
               <Home size={17} />
-              Le livret
+              {copy.booklet}
             </button>
             <button
               type="button"
@@ -1696,7 +1781,7 @@ export default function PublicBookletPage() {
               }`}
             >
               <MapPin size={17} />
-              À proximité
+              {copy.nearby}
             </button>
           </div>
         </nav>

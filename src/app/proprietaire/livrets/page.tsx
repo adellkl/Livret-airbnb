@@ -108,7 +108,7 @@ function BookletCard({ property }: { property: OwnerProperty }) {
   const published = property.status === 'published';
 
   return (
-    <Link href={ROUTES.OWNER_BOOKLET_EDITOR(property.id)} className="group overflow-hidden rounded-[1.7rem] border border-[#e4ddd6] bg-white transition hover:-translate-y-1 hover:border-[#df7045]/45 hover:shadow-[0_22px_42px_rgba(31,41,37,.12)]">
+    <Link href={ROUTES.OWNER_BOOKLET_EDITOR(property.id)} className="overflow-hidden rounded-[1.7rem] border border-[#e4ddd6] bg-white">
       <div className="relative aspect-[16/9] overflow-hidden bg-[#203039]">
         {property.coverImage ? (
           <Image
@@ -117,7 +117,7 @@ function BookletCard({ property }: { property: OwnerProperty }) {
             fill
             unoptimized
             sizes="(min-width: 1280px) 30vw, (min-width: 768px) 45vw, 100vw"
-            className="object-cover transition duration-500 group-hover:scale-105"
+            className="object-cover"
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center bg-[radial-gradient(circle_at_75%_20%,rgba(223,112,69,.42),transparent_28%),linear-gradient(135deg,#17232c,#30434a)] text-white/70">
@@ -144,7 +144,7 @@ function BookletCard({ property }: { property: OwnerProperty }) {
         </div>
         <div className="mt-5 flex items-center justify-between border-t border-[#eee8e2] pt-4 text-sm font-semibold text-[#303634]">
           <span className="flex items-center gap-2">{published ? <CheckCircle2 size={16} className="text-[#397d6d]" /> : <FilePenLine size={16} className="text-[#d85b24]" />}{published ? 'Gérer le livret' : 'Continuer la rédaction'}</span>
-          <ChevronRight size={18} className="text-[#d85b24] transition-transform group-hover:translate-x-1" />
+          <ChevronRight size={18} className="text-[#d85b24]" />
         </div>
       </div>
     </Link>

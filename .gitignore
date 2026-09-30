@@ -42,3 +42,22 @@ next-env.d.ts
 
 # Supabase CLI local state
 supabase/.temp/
+
+# Safe environment template
+!.env.example
+
+# Editor temporary files
+*.swp
+*.swo
+*~
+.idea/
+
+# Credentials and local Firebase state
+*.key
+*.p12
+*.pfx
+*service-account*.json
+*serviceAccount*.json
+firebase-adminsdk*.json
+.firebase/
+*-debug.log

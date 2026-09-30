@@ -6,7 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test tests/*.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "security:check": "node scripts/check-secrets.mjs",
+    "security:history": "node scripts/check-secrets.mjs --history",
+    "check": "npm run security:check && npm run lint && npm run typecheck && npm test",
+    "setup:hooks": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -16,7 +22,7 @@
     "firebase": "^12.17.1",
     "framer-motion": "^12.42.2",
     "lucide-react": "^1.25.0",
-    "next": "16.2.11",
+    "next": "^16.3.7",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -34,7 +40,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.11",
+    "eslint-config-next": "^16.3.7",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

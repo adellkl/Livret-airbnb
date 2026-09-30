@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import MobileHoverGuard from "@/components/layout/MobileHoverGuard";
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL
   ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://monlivret.eu");
@@ -30,7 +31,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <MobileHoverGuard />
+        {children}
+      </body>
     </html>
   );
 }

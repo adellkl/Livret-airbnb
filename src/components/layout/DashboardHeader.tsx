@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Bell, User, ChevronDown, LogOut, Building2, CreditCard, Settings, X } from 'lucide-react';
+import { Bell, ChevronDown, LogOut, Building2, CreditCard, Settings, X } from 'lucide-react';
 import { firebaseAuth, firestore } from '@/lib/firebase/client';
 import { doc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
@@ -17,6 +18,7 @@ export default function DashboardHeader({ title, subtitle }: DashboardHeaderProp
   const router = useRouter();
   const [profileName, setProfileName] = useState('Mon compte');
   const [email, setEmail] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -30,7 +32,10 @@ export default function DashboardHeader({ title, subtitle }: DashboardHeaderProp
       if (active) setEmail(user.email ?? '');
       const profile = await getDoc(doc(firestore, 'profiles', user.uid));
       const data = profile.data();
-      if (active) setProfileName(data?.fullName || data?.organizationName || user.email || 'Mon compte');
+      if (active) {
+        setProfileName(data?.fullName || data?.organizationName || user.email || 'Mon compte');
+        setAvatarUrl(typeof data?.avatarUrl === 'string' ? data.avatarUrl : '');
+      }
     };
     const unsubscribe = onAuthStateChanged(firebaseAuth, () => { void loadProfile(); });
     return () => { active = false; unsubscribe(); };
@@ -66,12 +71,12 @@ export default function DashboardHeader({ title, subtitle }: DashboardHeaderProp
 
   return (
     <header ref={headerRef} className="sticky top-0 z-40 border-b border-border bg-[#fbfaf8] px-4 py-4 shadow-[0_8px_30px_rgba(31,27,24,.06)] sm:px-8 sm:py-5">
-      <div className="mx-auto flex max-w-[1440px] items-start justify-between gap-3">
+      <div className="mx-auto flex min-h-20 max-w-[1440px] items-start justify-between gap-3 pr-16 sm:min-h-16 lg:pr-0">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold text-foreground sm:text-2xl">{title}</h1>
-          {subtitle && <p className="mt-1 max-w-2xl text-sm leading-5 text-muted-foreground">{subtitle}</p>}
+          {subtitle && <p className="mt-1 line-clamp-2 max-w-2xl text-sm leading-5 text-muted-foreground">{subtitle}</p>}
         </div>
-        <div className="relative flex shrink-0 items-center gap-1 sm:gap-4">
+        <div className="relative hidden shrink-0 items-center gap-4 lg:flex">
           <button
             type="button"
             aria-label="Notifications"
@@ -87,8 +92,21 @@ export default function DashboardHeader({ title, subtitle }: DashboardHeaderProp
             onClick={() => { setAccountOpen((open) => !open); setNotificationsOpen(false); }}
             className="flex items-center gap-2 border-l border-border pl-2 text-left sm:gap-3 sm:pl-4"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-light">
-              <User size={19} className="text-primary" />
+            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-light text-xs font-semibold text-primary">
+              {avatarUrl ? (
+                <Image
+                  alt={`Photo de ${profileName}`}
+                  className="object-cover"
+                  fill
+                  sizes="36px"
+                  src={avatarUrl}
+                  unoptimized
+                />
+              ) : (
+                <span aria-hidden="true">
+                  {profileName.trim().charAt(0).toLocaleUpperCase('fr-FR') || 'P'}
+                </span>
+              )}
             </div>
             <div className="hidden sm:block">
               <p className="max-w-44 truncate text-sm font-medium text-foreground">{profileName}</p>

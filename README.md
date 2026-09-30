@@ -1,38 +1,57 @@
-# Livret-airbnb
+# Mon Livret
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Des livrets d’accueil numériques pour les propriétaires et les conciergeries. Les voyageurs retrouvent les informations de leur séjour depuis un lien ou un QR code, sans application à installer.
 
-## Getting Started
+## Fonctionnalités
 
-First, run the development server:
+- Création et personnalisation des logements et livrets.
+- Informations d’arrivée, Wi-Fi, équipements et bonnes adresses.
+- Accès par réservation avec expiration, messagerie et suivi des consultations.
+- Suppression d’un logement et de ses données associées, après confirmation.
 
-```bash
+## Démarrer
+
+**Prérequis :** Node.js 22, npm et un projet Firebase avec Authentication et Firestore configurés. Activez les modes de connexion utilisés (e-mail, Google et connexion anonyme pour les voyageurs).
+
+```sh
+npm ci
+cp .env.example .env.local
+# Renseigner les variables Firebase dans .env.local
+npm run setup:hooks
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Ouvrir [localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Les variables `NEXT_PUBLIC_*` sont visibles dans le navigateur : elles ne doivent jamais contenir de clé privée ou de secret serveur. Les droits d’accès reposent sur les règles Firebase.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Vérifier et publier
 
-## Learn More
+```sh
+npm run check    # Secrets, lint, TypeScript et tests
+npm run build    # Compilation de production
+npm start       # Démarrage de la version compilée
+```
 
-To learn more about Next.js, take a look at the following resources:
+Le hook local vérifie le code et les secrets avant chaque push. GitHub Actions relance les vérifications et la compilation. Pousser sur GitHub ne déploie pas les règles Firebase.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Avec Firebase CLI installé et connecté, publiez les règles sur le projet choisi :
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```sh
+firebase deploy --only firestore:rules,storage --project VOTRE_PROJET_FIREBASE
+```
 
-## Deploy on Vercel
+**Les règles Firestore doivent être déployées avec la fonctionnalité de suppression de logement.** Testez les changements de règles sur un projet de test avant la production.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `src/app` : pages publiques, espace propriétaire, guides et API.
+- `src/components` : interface réutilisable.
+- `src/lib` : logique métier et connexion Firebase.
+- `tests` : tests automatisés.
+- `firestore.rules` et `storage.rules` : autorisations Firebase.
+- `supabase/migrations` : anciennes migrations conservées pour l’historique ; l’application actuelle utilise Firebase.
+
+**Stack :** Next.js, React, TypeScript, Tailwind CSS et Firebase.
+
+Les intégrations calendriers/PMS sont encore annoncées comme à venir. Pour signaler une vulnérabilité, voir [SECURITY.md](SECURITY.md).

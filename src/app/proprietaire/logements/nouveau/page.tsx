@@ -12,12 +12,13 @@ import { ROUTES } from '@/config/routes';
 import {
   type OwnerProperty,
 } from '@/lib/owner-properties';
-import { firebaseAuth, firebaseAuthReady, firebaseStorage, firestore } from '@/lib/firebase/client';
+import { firebaseAuth, firebaseAuthReady, firestore } from '@/lib/firebase/client';
 import { collection, doc, getDoc, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { compressImageToDataUrl } from '@/lib/image-data-url';
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowDownToLine,
   BookOpen,
   Building2,
   Check,
@@ -25,7 +26,9 @@ import {
   Home,
   ImageIcon,
   KeyRound,
+  Link2,
   ListChecks,
+  LoaderCircle,
   MapPin,
   Palette,
   Plus,
@@ -167,9 +170,13 @@ export default function NewPropertyPage() {
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const equipmentInputRef = useRef<HTMLInputElement>(null);
   const [equipmentUploadIndex, setEquipmentUploadIndex] = useState<number | null>(null);
+  const [listingUrl, setListingUrl] = useState('');
+  const [isImportingListing, setIsImportingListing] = useState(false);
+  const [importNotice, setImportNotice] = useState('');
 
   const progress = (currentStep / steps.length) * 100;
   const currentStepData = steps[currentStep - 1];
+  const nextStepData = steps[currentStep];
 
   const completedFields = useMemo(() => {
     const importantFields = [
@@ -216,7 +223,7 @@ export default function NewPropertyPage() {
     if (!file.type.startsWith('image/')) {
       throw new Error('file-type');
     }
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > 25 * 1024 * 1024) {
       throw new Error('file-size');
     }
 
@@ -224,13 +231,7 @@ export default function NewPropertyPage() {
     const user = firebaseAuth.currentUser;
     if (!user) throw new Error('not-authenticated');
 
-    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-').toLowerCase();
-    const imageRef = ref(
-      firebaseStorage,
-      `properties/${user.uid}/drafts/${crypto.randomUUID()}-${safeFileName}`,
-    );
-    await uploadBytes(imageRef, file, { contentType: file.type });
-    return getDownloadURL(imageRef);
+    return compressImageToDataUrl(file);
   };
 
   const uploadCoverImage = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -247,7 +248,9 @@ export default function NewPropertyPage() {
       setError(code === 'file-type'
         ? 'Choisissez un fichier image (JPG, PNG, WebP…).'
         : code === 'file-size'
-          ? 'L’image est trop volumineuse. La taille maximale est de 10 Mo.'
+          ? 'L’image est trop volumineuse. La taille maximale est de 25 Mo.'
+          : code === 'image-too-large-after-compression'
+            ? 'Cette image reste trop grande après optimisation. Choisissez une autre photo.'
           : 'Impossible d’envoyer l’image. Vérifiez votre connexion puis réessayez.');
     } finally {
       setUploading(null);
@@ -272,7 +275,9 @@ export default function NewPropertyPage() {
       setError(code === 'file-type'
         ? 'Choisissez uniquement des fichiers image.'
         : code === 'file-size'
-          ? 'Une image dépasse la taille maximale de 10 Mo.'
+          ? 'Une image dépasse la taille maximale de 25 Mo.'
+          : code === 'image-too-large-after-compression'
+            ? 'Une image reste trop grande après optimisation. Choisissez une autre photo.'
           : 'Impossible d’envoyer les images. Vérifiez votre connexion puis réessayez.');
     } finally {
       setUploading(null);
@@ -291,10 +296,66 @@ export default function NewPropertyPage() {
       updateProperty('equipmentGuides', (property.equipmentGuides ?? []).map((item, index) => index === equipmentUploadIndex ? { ...item, imageUrl } : item));
     } catch (uploadError) {
       const code = uploadError instanceof Error ? uploadError.message : '';
-      setError(code === 'file-type' ? 'Choisissez un fichier image (JPG, PNG, WebP…).' : code === 'file-size' ? 'L’image est trop volumineuse. La taille maximale est de 10 Mo.' : 'Impossible d’envoyer l’image de cet équipement.');
+      setError(code === 'file-type' ? 'Choisissez un fichier image (JPG, PNG, WebP…).' : code === 'file-size' ? 'L’image est trop volumineuse. La taille maximale est de 25 Mo.' : code === 'image-too-large-after-compression' ? 'Cette image reste trop grande après optimisation. Choisissez une autre photo.' : 'Impossible d’envoyer l’image de cet équipement.');
     } finally {
       setEquipmentUploadIndex(null);
       setUploading(null);
+    }
+  };
+
+  const importListing = async () => {
+    if (!listingUrl.trim()) {
+      setImportNotice('Collez un lien Airbnb ou Google Maps pour commencer l’import.');
+      return;
+    }
+    setIsImportingListing(true);
+    setImportNotice('');
+    try {
+      const response = await fetch('/api/property-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: listingUrl.trim() }),
+      });
+      const imported = await response.json() as {
+        error?: string;
+        name?: string;
+        description?: string;
+        coverImage?: string;
+        gallery?: string[];
+        amenities?: string[];
+        address?: { address?: string; city?: string; postalCode?: string };
+        type?: string;
+      };
+      if (!response.ok) throw new Error(imported.error || 'Import impossible.');
+
+      const type = imported.type?.toLocaleLowerCase('fr') ?? '';
+      const matchedType = type.includes('villa') ? 'Villa'
+        : type.includes('house') || type.includes('maison') ? 'Maison'
+          : type.includes('chalet') ? 'Chalet'
+            : type.includes('loft') ? 'Loft'
+              : type.includes('studio') ? 'Studio'
+                : type.includes('apartment') || type.includes('appartement') ? 'Appartement'
+                  : '';
+      const images = Array.from(new Set(imported.gallery ?? []));
+      setProperty((current) => ({
+        ...current,
+        name: imported.name?.trim() || current.name,
+        description: imported.description?.trim() || current.description,
+        coverImage: imported.coverImage?.trim() || current.coverImage,
+        gallery: images.length ? images.map((url, index) => ({ url, caption: `Photo importée ${index + 1}` })) : current.gallery,
+        amenities: imported.amenities?.length ? Array.from(new Set([...(current.amenities ?? []), ...imported.amenities])) : current.amenities,
+        address: imported.address?.address?.trim() || current.address,
+        city: imported.address?.city?.trim() || current.city,
+        postalCode: imported.address?.postalCode?.trim() || current.postalCode,
+        type: matchedType || current.type,
+      }));
+      setImportNotice(images.length || imported.name || imported.description
+        ? 'Import terminé. Relisez les informations, puis complétez les éléments absents avant de publier.'
+        : 'Le lien a été lu, mais il ne contient pas de données publiques exploitables. Vous pouvez continuer la saisie manuellement.');
+    } catch (importError) {
+      setImportNotice(importError instanceof Error ? importError.message : 'Impossible d’importer ce lien.');
+    } finally {
+      setIsImportingListing(false);
     }
   };
 
@@ -573,7 +634,34 @@ export default function NewPropertyPage() {
               />
             </div>
 
-            <div className="mt-6 grid grid-cols-4 gap-2 lg:block lg:space-y-2">
+            <div className="mt-6 lg:hidden">
+              <div className="rounded-2xl bg-white p-3 text-[#17232c] shadow-[0_12px_24px_rgba(6,16,24,.14)]">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f8e7df] text-sm font-bold text-[#d85b24]">
+                    {currentStep}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-[.14em] text-[#d85b24]">Étape en cours</p>
+                    <p className="mt-0.5 truncate text-sm font-semibold">{currentStepData.label}</p>
+                    <p className="mt-0.5 truncate text-[11px] text-[#77736f]">{currentStepData.description}</p>
+                  </div>
+                </div>
+              </div>
+
+              {nextStepData && (
+                <div className="mt-3 flex items-center gap-3 rounded-2xl border border-dashed border-white/20 px-3 py-2.5 text-white/55">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/8 text-xs font-bold">
+                    {nextStepData.id}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-[.14em] text-white/35">Prochaine étape</p>
+                    <p className="truncate text-xs font-semibold">{nextStepData.label}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 hidden space-y-2 lg:block">
               {steps.map((step) => {
                 const isActive = currentStep === step.id;
                 const isDone = currentStep > step.id;
@@ -658,9 +746,27 @@ export default function NewPropertyPage() {
               </p>
             </div>
 
-            <div className="min-h-[520px] p-5 sm:p-8">
+            <div key={currentStep} className="wizard-step-enter min-h-[520px] p-5 sm:p-8">
               {currentStep === 1 && (
                 <div className="space-y-7">
+                  <section className="relative overflow-hidden rounded-[1.5rem] border border-[#cfe3dc] bg-[linear-gradient(135deg,#edf7f2_0%,#f9fcfa_58%,#fff4ed_100%)] p-5 shadow-[0_12px_30px_rgba(54,117,102,.08)] sm:p-6">
+                    <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full border border-[#367566]/10" />
+                    <div className="relative flex items-start gap-3">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#17232c] text-[#f2a081] shadow-[0_8px_18px_rgba(23,35,44,.15)]"><ArrowDownToLine size={20} /></span>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-[.16em] text-[#367566]">Import intelligent</p>
+                        <h3 className="mt-1 text-lg font-semibold text-[#243b36]">Démarrez avec votre annonce</h3>
+                        <p className="mt-1 text-sm leading-5 text-[#5d756d]">Collez un lien Airbnb ou Google Maps : les informations publiques disponibles seront proposées dans votre livret.</p>
+                      </div>
+                    </div>
+                    <div className="relative mt-5 flex flex-col gap-2 sm:flex-row">
+                      <div className="relative min-w-0 flex-1"><Link2 size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#779188]" /><Input value={listingUrl} onChange={(event) => setListingUrl(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void importListing(); } }} placeholder="https://www.airbnb.fr/rooms/... ou Google Maps" className="h-12 border-[#cfe3dc] bg-white pl-11 shadow-sm focus-visible:border-[#367566] focus-visible:ring-[#367566]/15" /></div>
+                      <Button type="button" onClick={() => void importListing()} disabled={isImportingListing} className="h-12 shrink-0 rounded-xl bg-[#17232c] px-5 hover:bg-[#263944]">{isImportingListing ? <LoaderCircle size={16} className="mr-2 animate-spin" /> : <ArrowDownToLine size={16} className="mr-2" />}{isImportingListing ? 'Import en cours…' : 'Importer'}</Button>
+                    </div>
+                    <div className="relative mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[#637972]"><span>Nom et description</span><span>Photos disponibles</span><span>Adresse et équipements visibles</span></div>
+                    {importNotice && <p className={`relative mt-4 rounded-xl px-3 py-2.5 text-xs leading-5 ${importNotice.startsWith('Import terminé') ? 'bg-[#dff1e9] text-[#286452]' : 'bg-[#fff0e9] text-[#a94f34]'}`}>{importNotice}</p>}
+                  </section>
+
                   <FormSection
                     icon={Home}
                     title="Identité du logement"
@@ -929,14 +1035,24 @@ export default function NewPropertyPage() {
               )}
 
               {currentStep === 3 && (
-                <FormSection icon={Wifi} title="Équipements du logement" description="Ajoutez un équipement, son mode d’emploi et une photo importée depuis votre appareil ou une URL directe.">
-                  <div className="space-y-4">
+                <div className="space-y-4">
+                  <button
+                    type="button"
+                    onClick={() => goToStep(2)}
+                    className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d8d1ca] bg-white px-4 text-sm font-semibold text-[#34413d] shadow-sm transition hover:border-[#d85b24]/45 hover:bg-[#fffaf7]"
+                  >
+                    <ArrowLeft size={17} className="text-[#d85b24]" />
+                    Revenir à Arrivée & accès
+                  </button>
+                  <FormSection icon={Wifi} title="Équipements du logement" description="Ajoutez un équipement, son mode d’emploi et une photo importée depuis votre appareil ou une URL directe.">
+                    <div className="space-y-4">
                     {(property.equipmentGuides ?? []).map((equipment, index) => <div key={index} className="grid gap-3 rounded-2xl border border-[#e6dfd8] bg-white p-4 sm:grid-cols-[120px_1fr_auto]"><div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-[#f3eee8]">{equipment.imageUrl ? <Image src={equipment.imageUrl} alt={equipment.name || 'Équipement'} fill unoptimized sizes="120px" className="object-cover" /> : <ImageIcon className="absolute inset-0 m-auto text-[#a39c95]" size={24} />}</div><div className="space-y-3"><Input value={equipment.name} onChange={(event) => updateProperty('equipmentGuides', (property.equipmentGuides ?? []).map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} placeholder="Ex. Machine à café" className={fieldClass} /><Textarea value={equipment.instructions} onChange={(event) => updateProperty('equipmentGuides', (property.equipmentGuides ?? []).map((item, itemIndex) => itemIndex === index ? { ...item, instructions: event.target.value } : item))} placeholder="Mode d’emploi (facultatif)" className="min-h-20 resize-none rounded-xl border-[#ded8d1] bg-white p-3 shadow-none" /><div className="grid gap-2 sm:grid-cols-2"><Button type="button" variant="outline" onClick={() => { setEquipmentUploadIndex(index); equipmentInputRef.current?.click(); }} disabled={uploading !== null} className="rounded-xl"><Upload className="mr-2 h-4 w-4" />Importer une photo</Button><Input type="url" value={equipment.imageUrl} onChange={(event) => updateProperty('equipmentGuides', (property.equipmentGuides ?? []).map((item, itemIndex) => itemIndex === index ? { ...item, imageUrl: event.target.value } : item))} placeholder="Lien direct de l’image" className={fieldClass} /></div></div><button type="button" onClick={() => updateProperty('equipmentGuides', (property.equipmentGuides ?? []).filter((_, itemIndex) => itemIndex !== index))} className="self-start rounded-xl p-3 text-[#b8453c] hover:bg-[#fdeceb]" aria-label="Supprimer cet équipement"><Trash2 size={18} /></button></div>)}
                     <input ref={equipmentInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="sr-only" onChange={(event) => void uploadEquipmentImage(event)} />
                     <Button type="button" variant="outline" onClick={() => updateProperty('equipmentGuides', [...(property.equipmentGuides ?? []), { name: '', instructions: '', imageUrl: '' }])} className="w-full rounded-xl border-dashed"><Plus className="mr-2 h-4 w-4" />Ajouter un équipement</Button>
                     {fieldErrors.equipmentGuides && <p role="alert" className="text-sm font-medium text-[#b8453c]">{fieldErrors.equipmentGuides}</p>}
-                  </div>
-                </FormSection>
+                    </div>
+                  </FormSection>
+                </div>
               )}
 
               {currentStep === 4 && (
@@ -1070,7 +1186,7 @@ export default function NewPropertyPage() {
                       {uploading === 'cover' ? 'Envoi de la couverture…' : 'Importer depuis mon appareil'}
                     </Button>
                     <div className="mt-3"><Field label="Ou collez le lien d’une image"><Input type="url" value={property.coverImage} onChange={(event) => updateProperty('coverImage', event.target.value)} placeholder="https://images.google.com/…" className={fieldClass} /></Field></div>
-                    <p className="mt-2 text-xs leading-5 text-[#77736f]">JPG, PNG, WebP ou AVIF · 10 Mo maximum. Vous pouvez aussi utiliser l’URL directe d’une image.</p>
+                    <p className="mt-2 text-xs leading-5 text-[#77736f]">JPG, PNG, WebP ou AVIF · 25 Mo maximum. Vous pouvez aussi utiliser l’URL directe d’une image.</p>
                     {fieldErrors.coverImage && <p role="alert" className="mt-2 text-sm font-medium text-[#b8453c]">{fieldErrors.coverImage}</p>}
                   </FormSection>
 
@@ -1102,7 +1218,7 @@ export default function NewPropertyPage() {
                         <Button type="button" variant="outline" onClick={() => galleryInputRef.current?.click()} disabled={uploading !== null} className="w-full rounded-xl border-dashed"><Upload className="mr-2 h-4 w-4" />{uploading === 'gallery' ? 'Envoi des photos…' : 'Importer depuis mon appareil'}</Button>
                         <Button type="button" variant="outline" onClick={() => updateProperty('gallery', [...(property.gallery ?? []), { url: '', caption: '' }])} disabled={uploading !== null} className="w-full rounded-xl border-dashed"><Plus className="mr-2 h-4 w-4" />Ajouter par URL</Button>
                       </div>
-                      <p className="text-xs leading-5 text-[#77736f]">Importez plusieurs photos depuis votre appareil, ou collez une URL. JPG, PNG, WebP ou AVIF · 10 Mo maximum par image.</p>
+                      <p className="text-xs leading-5 text-[#77736f]">Importez plusieurs photos depuis votre appareil, ou collez une URL. JPG, PNG, WebP ou AVIF · 25 Mo maximum par image.</p>
                     </div>
                   </FormSection>
 

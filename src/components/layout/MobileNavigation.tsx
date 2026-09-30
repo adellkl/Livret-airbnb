@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -21,6 +22,9 @@ import {
 import BrandMark from '@/components/layout/BrandMark';
 import { ROUTES } from '@/config/routes';
 import { useSubscription } from '@/hooks/useSubscription';
+import { firebaseAuth, firestore } from '@/lib/firebase/client';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 
 interface MobileNavigationProps {
   type: 'owner' | 'admin';
@@ -43,6 +47,8 @@ const adminMenuItems = [
 
 export default function MobileNavigation({ type }: MobileNavigationProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [profileName, setProfileName] = useState('Mon compte');
+  const [avatarUrl, setAvatarUrl] = useState('');
   const pathname = usePathname();
   const { isPaid, plan } = useSubscription();
   const menuItems = (type === 'owner' ? ownerMenuItems : adminMenuItems).filter(
@@ -63,6 +69,28 @@ export default function MobileNavigation({ type }: MobileNavigationProps) {
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadProfile = async () => {
+      const user = firebaseAuth.currentUser;
+      if (!user) return;
+
+      const profile = await getDoc(doc(firestore, 'profiles', user.uid));
+      const data = profile.data();
+      if (!active) return;
+
+      setProfileName(data?.fullName || data?.organizationName || user.email || 'Mon compte');
+      setAvatarUrl(typeof data?.avatarUrl === 'string' ? data.avatarUrl : '');
+    };
+
+    const unsubscribe = onAuthStateChanged(firebaseAuth, () => { void loadProfile(); });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
   return (
     <>
       <button
@@ -70,7 +98,7 @@ export default function MobileNavigation({ type }: MobileNavigationProps) {
         aria-label={isOpen ? 'Fermer le menu propriétaire' : 'Ouvrir le menu propriétaire'}
         aria-expanded={isOpen}
         aria-controls="owner-mobile-menu"
-        className="fixed right-4 top-3 z-[70] flex h-11 w-11 items-center justify-center rounded-xl bg-[#17232c] text-white shadow-[0_12px_28px_rgba(23,35,44,.24)] transition hover:bg-[#263942] active:scale-95 lg:hidden"
+        className="fixed right-4 top-3 z-[70] flex h-12 w-12 items-center justify-center rounded-2xl bg-[#17232c] text-white shadow-[0_12px_28px_rgba(23,35,44,.24)] ring-1 ring-white/20 transition hover:bg-[#263942] active:scale-95 lg:hidden"
         onClick={() => setIsOpen((open) => !open)}
       >
         <motion.span animate={{ rotate: isOpen ? 90 : 0 }} transition={{ duration: 0.2 }}>
@@ -150,17 +178,30 @@ export default function MobileNavigation({ type }: MobileNavigationProps) {
           </nav>
 
           <div className="border-t border-[#ded8d1] bg-white/60 p-5">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f4e7df] font-semibold text-[#d85b24]">
-                AB
+            <Link
+              href={ROUTES.OWNER_SETTINGS}
+              onClick={() => setIsOpen(false)}
+              className="mb-4 flex items-center gap-3 rounded-2xl p-2 transition hover:bg-white"
+            >
+              <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#f4e7df] text-sm font-semibold text-[#d85b24]">
+                {avatarUrl ? (
+                  <Image
+                    src={avatarUrl}
+                    alt={`Photo de ${profileName}`}
+                    fill
+                    sizes="44px"
+                    unoptimized
+                    className="object-cover"
+                  />
+                ) : (
+                  <span aria-hidden="true">{profileName.trim().charAt(0).toLocaleUpperCase('fr-FR') || 'P'}</span>
+                )}
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-[#27302c]">
-                  Votre espace propriétaire
-                </p>
-                <p className="text-xs text-[#807a75]">{isPaid ? `Formule ${plan === 'business' ? 'Business' : 'Pro'}` : 'Formule gratuite'}</p>
+                <p className="truncate text-sm font-semibold text-[#27302c]">{profileName}</p>
+                <p className="text-xs text-[#807a75]">Propriétaire · {isPaid ? `Formule ${plan === 'business' ? 'Business' : 'Pro'}` : 'Formule gratuite'}</p>
               </div>
-            </div>
+            </Link>
             <Link
               href={ROUTES.HOME}
               onClick={() => setIsOpen(false)}
