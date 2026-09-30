@@ -3,9 +3,13 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: monthly
+    # Dependabot remains configured but will not open pull requests or trigger
+    # additional PR-notification emails for this repository.
+    open-pull-requests-limit: 0
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 0
