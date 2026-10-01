@@ -6,8 +6,13 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function ownsProperty(propertyId) {
+    function accountIsActive() {
       return signedIn()
+        && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.get('accountStatus', 'active') == 'active';
+    }
+
+    function ownsProperty(propertyId) {
+      return accountIsActive()
         && get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId == request.auth.uid;
     }
 
@@ -17,13 +22,13 @@ service cloud.firestore {
     }
 
     function ownsPropertyAfter(propertyId) {
-      return signedIn()
+      return accountIsActive()
         && getAfter(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId == request.auth.uid
         && getAfter(/databases/$(database)/documents/properties/$(propertyId)).data.get('isDeleting', false) != true;
     }
 
     function isAdmin() {
-      return signedIn()
+      return accountIsActive()
         && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'admin';
     }
 
@@ -31,22 +36,24 @@ service cloud.firestore {
         allow create: if signedIn()
           && request.auth.uid == userId
           && request.resource.data.role == 'owner'
-          && request.resource.data.subscriptionPlan == 'free';
+          && request.resource.data.subscriptionPlan == 'free'
+          && request.resource.data.get('accountStatus', 'active') == 'active';
         allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
         allow delete: if signedIn() && request.auth.uid == userId;
         allow update: if isAdmin()
-          || (signedIn()
+          || (accountIsActive()
             && request.auth.uid == userId
             && request.resource.data.role == resource.data.role
             && request.resource.data.subscriptionPlan == resource.data.subscriptionPlan
-            && request.resource.data.subscriptionStatus == resource.data.subscriptionStatus);
+            && request.resource.data.subscriptionStatus == resource.data.subscriptionStatus
+            && request.resource.data.get('accountStatus', 'active') == resource.data.get('accountStatus', 'active'));
       }
 
     match /properties/{propertyId} {
-      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow read: if signedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
-      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
-      allow update: if signedIn()
+      allow create: if accountIsActive() && request.resource.data.ownerId == request.auth.uid;
+      allow read: if (accountIsActive() && resource.data.ownerId == request.auth.uid) || isAdmin();
+      allow delete: if accountIsActive() && resource.data.ownerId == request.auth.uid;
+      allow update: if accountIsActive()
         && resource.data.ownerId == request.auth.uid
         && resource.data.get('isDeleting', false) != true
         && request.resource.data.ownerId == request.auth.uid;
@@ -123,7 +130,7 @@ service cloud.firestore {
       // while the owner retains access to every rating for their property.
       // The explicit ownerId branch also lets Firestore prove the owner query
       // used by the dashboard (`where('ownerId', '==', uid)`) is safe.
-      allow read: if (signedIn() && resource.data.ownerId == request.auth.uid)
+      allow read: if (accountIsActive() && resource.data.ownerId == request.auth.uid)
         || ownsProperty(resource.data.propertyId)
         || isAdmin()
         || (signedIn() && resource.data.guestId == request.auth.uid);
@@ -148,7 +155,7 @@ service cloud.firestore {
       // `ownerId` is validated against the property owner at creation time.
       // Checking it directly here lets Firestore authorize the real-time
       // `where('ownerId', '==', uid)` query used by the owner inbox.
-      allow read: if (signedIn() && resource.data.ownerId == request.auth.uid)
+      allow read: if (accountIsActive() && resource.data.ownerId == request.auth.uid)
         || (signedIn() && resource.data.guestId == request.auth.uid);
       allow update: if ownsActiveProperty(resource.data.propertyId);
       allow delete: if ownsProperty(resource.data.propertyId);
@@ -157,18 +164,25 @@ service cloud.firestore {
     match /public_guides/{guideToken} {
       // A draft may be prepared in this mirror, but it must never be readable
       // through a public URL until its owner explicitly publishes it. A guide
-      // issued for a reservation also stops being readable after its checkout.
+      // can also require a scheduled stay window; Firestore rejects public reads
+      // before arrival and after checkout without relying on a client timer.
       allow list: if ownsProperty(resource.data.propertyId);
       allow get: if ownsProperty(guideToken) || (exists(/databases/$(database)/documents/properties/$(resource.data.propertyId))
           && get(/databases/$(database)/documents/properties/$(resource.data.propertyId)).data.get('isDeleting', false) != true
           && resource.data.status == 'published'
+          && (!resource.data.keys().hasAll(['accessStartsAt'])
+            || resource.data.accessStartsAt == null
+            || request.time >= resource.data.accessStartsAt)
           && (!resource.data.keys().hasAll(['accessExpiresAt'])
             || resource.data.accessExpiresAt == null
-            || request.time < resource.data.accessExpiresAt))
+            || request.time < resource.data.accessExpiresAt)
+          && (resource.data.get('guestAccessRequired', false) != true
+            || (resource.data.keys().hasAll(['accessStartsAt', 'accessExpiresAt'])
+              && resource.data.accessStartsAt != null
+              && resource.data.accessExpiresAt != null)))
         || ownsProperty(resource.data.propertyId)
         || isAdmin();
-      // A reservation gets its own random guide token while still being tied
-      // to the owner's real property through `propertyId`.
+      // Owner-only writes allow a property guide to store its stay window.
       allow create: if signedIn()
         && request.resource.data.ownerId == request.auth.uid
         && (ownsActiveProperty(request.resource.data.propertyId)

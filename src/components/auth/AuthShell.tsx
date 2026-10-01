@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { Check, HeartHandshake } from 'lucide-react';
+import { ArrowLeft, Check, HeartHandshake } from 'lucide-react';
 import { ROUTES } from '@/config/routes';
 
 interface AuthShellProps {
@@ -40,9 +40,20 @@ export default function AuthShell({ children, mode }: AuthShellProps) {
           <div className="absolute -right-20 -top-16 h-56 w-56 rounded-full border border-white/15" />
 
           <div className="relative flex h-full flex-col justify-between p-8 xl:p-11">
-            <Link href={ROUTES.HOME} aria-label="Retour à l’accueil" className="w-fit">
-              <AuthBrand light />
-            </Link>
+            <div className="flex items-center justify-between gap-4">
+              <Link href={ROUTES.HOME} aria-label="Retour à l’accueil" className="w-fit">
+                <AuthBrand light />
+              </Link>
+              {isLogin ? (
+                <Link
+                  href={ROUTES.HOME}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-full border border-white/20 bg-[#17201c]/25 px-3.5 py-2.5 text-[11px] font-semibold text-white/90 backdrop-blur-md transition hover:border-white/35 hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                >
+                  <ArrowLeft size={14} />
+                  Revenir au site
+                </Link>
+              ) : null}
+            </div>
 
             <div className="max-w-[590px] text-white">
               <div className="mb-6 flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.19em] text-white/80 backdrop-blur-md">

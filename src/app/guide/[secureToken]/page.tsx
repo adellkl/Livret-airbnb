@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import BrandMark from '@/components/layout/BrandMark';
@@ -13,7 +13,6 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  Coffee,
   Copy,
   ExternalLink,
   Home,
@@ -21,7 +20,6 @@ import {
   MessageCircle,
   Navigation,
   Phone,
-  Play,
   ShieldCheck,
   Smartphone,
   Star,
@@ -29,7 +27,6 @@ import {
   Wifi,
   X,
 } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
 import {
   DEFAULT_OWNER_PROPERTIES,
   type OwnerProperty,
@@ -82,7 +79,6 @@ function getCityVisual(property: OwnerProperty): CityVisual {
 type EquipmentCard = {
   title: string;
   subtitle: string;
-  icon: LucideIcon;
   description: string;
   steps: string[];
   image: string;
@@ -106,6 +102,19 @@ const checkoutTasks = [
   'Remettre les clés dans la boîte',
 ];
 
+const departureConfetti = Array.from({ length: 28 }, (_, index) => {
+  const angle = (210 + (120 * index) / 27) * (Math.PI / 180);
+  const radius = 56 + (index % 4) * 16;
+
+  return {
+    '--confetti-x': `${Math.round(Math.cos(angle) * radius)}px`,
+    '--confetti-y': `${Math.round(Math.sin(angle) * radius)}px`,
+    '--confetti-rotation': `${(index % 2 === 0 ? -1 : 1) * (180 + index * 17)}deg`,
+    '--confetti-delay': `${(index % 7) * 24}ms`,
+    '--confetti-color': `hsl(${(index * 43 + 18) % 360} 85% 72%)`,
+  } as CSSProperties;
+});
+
 const guideCopy = {
   fr: {
     privateGuide: 'Livret privé', yourGuide: 'Votre guide privé', yourHost: 'Votre hôte', welcomes: 'vous accueille', stayStarts: 'Votre séjour commence ici', yourHome: 'Votre logement', wifi: 'Wi-Fi de l’appartement', connect: 'Connectez-vous en un geste', journey: 'Votre parcours', arrivalDeparture: 'Arrivée & départ', allInstructions: 'Toutes les instructions', prepareDeparture: 'Préparer mon départ', nearbySelection: 'La sélection de', bestNeighbourhood: 'Le meilleur du quartier', nearbyDescription: 'Des adresses choisies avec soin, toutes accessibles à pied.', directions: 'Itinéraire', booklet: 'Le livret', nearby: 'À proximité', privateMessages: 'Messagerie privée', backToBooklet: 'Retour au livret', firstMessage: 'Envoyez un premier message', writeMessage: 'Écrivez votre message…', exchangesPrivate: 'Vos échanges restent privés entre vous et votre hôte.', arrival: 'Arrivée', departure: 'Départ', yourStay: 'Votre séjour', chooseLanguage: 'Choisir la langue', languageFrench: 'Français', languageEnglish: 'English',
@@ -115,13 +124,71 @@ const guideCopy = {
   },
 } as const;
 
+type QrGuestIdentity = { firstName: string; lastName: string };
+
+const QR_IDENTITY_COOKIE_PREFIX = 'monlivret_qr_identity_';
+const QR_IDENTITY_COOKIE_MAX_AGE = 400 * 24 * 60 * 60;
+
+function getQrIdentityCookieName(token: string) {
+  const safeToken = token.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
+  return `${QR_IDENTITY_COOKIE_PREFIX}${safeToken}`;
+}
+
+function readQrIdentityCookie(token: string): QrGuestIdentity | null {
+  const name = getQrIdentityCookieName(token);
+  const cookie = document.cookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name}=`));
+
+  if (!cookie) return null;
+
+  try {
+    const saved = JSON.parse(decodeURIComponent(cookie.slice(name.length + 1))) as {
+      token?: unknown;
+      firstName?: unknown;
+      lastName?: unknown;
+    };
+    if (saved.token !== token || typeof saved.firstName !== 'string' || typeof saved.lastName !== 'string') return null;
+
+    const firstName = saved.firstName.trim();
+    const lastName = saved.lastName.trim();
+    return firstName && lastName ? { firstName, lastName } : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeQrIdentityCookie(token: string, identity: QrGuestIdentity, expiresAt: Date | null) {
+  const remainingSeconds = expiresAt
+    ? Math.floor((expiresAt.getTime() - Date.now()) / 1000)
+    : QR_IDENTITY_COOKIE_MAX_AGE;
+  if (remainingSeconds <= 0) return;
+
+  const name = getQrIdentityCookieName(token);
+  const value = encodeURIComponent(JSON.stringify({ token, ...identity }));
+  const cookiePath = `/guide/${encodeURIComponent(token)}`;
+  const maxAge = Math.min(remainingSeconds, QR_IDENTITY_COOKIE_MAX_AGE);
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${name}=${value}; Path=${cookiePath}; Max-Age=${maxAge}; SameSite=Lax${secure}`;
+}
+
+function clearQrIdentityCookie(token: string) {
+  const name = getQrIdentityCookieName(token);
+  const cookiePath = `/guide/${encodeURIComponent(token)}`;
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${name}=; Path=${cookiePath}; Max-Age=0; SameSite=Lax${secure}`;
+}
+
 export default function PublicBookletPage() {
   const params = useParams<{ secureToken: string }>();
   const [property, setProperty] = useState<OwnerProperty>(
     DEFAULT_OWNER_PROPERTIES[0]
   );
   const [ownerId, setOwnerId] = useState('');
-  const [guideState, setGuideState] = useState<'loading' | 'ready' | 'missing'>('loading');
+  const [guideExpiresAt, setGuideExpiresAt] = useState<Date | null>(null);
+  const [guideState, setGuideState] = useState<'loading' | 'identity' | 'ready' | 'missing'>('loading');
+  const [guideResolvedToken, setGuideResolvedToken] = useState('');
   const [copied, setCopied] = useState<'network' | 'password' | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [checkedTasks, setCheckedTasks] = useState<number[]>([]);
@@ -142,7 +209,10 @@ export default function PublicBookletPage() {
   const [chatMessages, setChatMessages] = useState<GuideMessage[]>([]);
   const [chatDraft, setChatDraft] = useState('');
   const [guestName, setGuestName] = useState('');
+  const [guestFirstName, setGuestFirstName] = useState('');
+  const [guestLastName, setGuestLastName] = useState('');
   const [guestNameConfirmed, setGuestNameConfirmed] = useState(false);
+  const [qrIdentityConfirmed, setQrIdentityConfirmed] = useState(false);
   const [chatError, setChatError] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [chatConnecting, setChatConnecting] = useState(false);
@@ -158,9 +228,11 @@ export default function PublicBookletPage() {
   const heroFooterRef = useRef<HTMLDivElement>(null);
   const equipmentGuideOpen = selectedEquipment !== null;
   const blockingOverlayOpen = equipmentGuideOpen || chatOpen || instructionsOpen;
-  const departureComplete = checkedTasks.length === checkoutTasks.length;
+  const departureComplete = checkoutTasks.length > 0 && checkedTasks.length === checkoutTasks.length;
   const departureProgress = Math.round((checkedTasks.length / checkoutTasks.length) * 100);
   const copy = guideCopy[language];
+  const currentGuideState = guideResolvedToken === params.secureToken ? guideState : 'loading';
+  const currentGuideExpiresAt = guideResolvedToken === params.secureToken ? guideExpiresAt : null;
   const propertyNearbyPlaces = (property.nearbyPlaces ?? []).map((place, index) => ({
     ...place,
     filter: place.category || 'Autre',
@@ -181,7 +253,6 @@ export default function PublicBookletPage() {
     .map((equipment) => ({
       title: equipment.name,
       subtitle: 'Guide de votre hôte',
-      icon: Coffee,
       description: equipment.instructions || 'Les indications de votre hôte sont à retrouver dans ce guide.',
       steps: equipment.instructions ? [equipment.instructions] : ['Consultez les indications de votre hôte.'],
       image: equipment.imageUrl,
@@ -203,16 +274,30 @@ export default function PublicBookletPage() {
 
   useEffect(() => {
     let active = true;
+    const isOwnerPreview = new URLSearchParams(window.location.search).get('preview') === '1';
+    const isQrVisit = new URLSearchParams(window.location.search).get('source') === 'qr';
     const loadGuide = async () => {
       try {
         const guide = await getDoc(doc(firestore, 'public_guides', params.secureToken));
         if (!active) return;
-        const isOwnerPreview = new URLSearchParams(window.location.search).get('preview') === '1';
         if (!guide.exists() || (guide.data().status !== 'published' && !isOwnerPreview)) {
+          if (isQrVisit && !isOwnerPreview) clearQrIdentityCookie(params.secureToken);
           setGuideState('missing');
+          setGuideResolvedToken(params.secureToken);
           return;
         }
       const data = guide.data();
+      const rawExpiry = data.accessExpiresAt;
+      const expiry = rawExpiry && typeof rawExpiry.toDate === 'function'
+        ? rawExpiry.toDate()
+        : rawExpiry instanceof Date ? rawExpiry : null;
+      setGuideExpiresAt(expiry);
+      if (isQrVisit && !isOwnerPreview && expiry && expiry.getTime() <= Date.now()) {
+        clearQrIdentityCookie(params.secureToken);
+        setGuideState('missing');
+        setGuideResolvedToken(params.secureToken);
+        return;
+      }
       const savedLanguage = window.localStorage.getItem(`monlivret:language:${params.secureToken}`);
       const preferredLanguage = savedLanguage === 'en' || savedLanguage === 'fr'
         ? savedLanguage
@@ -247,14 +332,55 @@ export default function PublicBookletPage() {
         showFaq: data.showFaq !== false,
         showGallery: data.showGallery !== false,
       });
+      if (isQrVisit && !isOwnerPreview) {
+        const savedIdentity = readQrIdentityCookie(params.secureToken);
+        if (!savedIdentity) {
+          setQrIdentityConfirmed(false);
+          setGuideState('identity');
+          setGuideResolvedToken(params.secureToken);
+          return;
+        }
+
+        const fullName = `${savedIdentity.firstName} ${savedIdentity.lastName}`;
+        setGuestFirstName(savedIdentity.firstName);
+        setGuestLastName(savedIdentity.lastName);
+        setGuestName(fullName);
+        setGuestNameConfirmed(true);
+        writeQrIdentityCookie(params.secureToken, savedIdentity, expiry);
+      }
       setGuideState('ready');
+      setGuideResolvedToken(params.secureToken);
       } catch {
-        if (active) setGuideState('missing');
+        if (active) {
+          setGuideState('missing');
+          setGuideResolvedToken(params.secureToken);
+        }
       }
     };
     void loadGuide();
     return () => { active = false; };
-  }, [params.secureToken]);
+  }, [qrIdentityConfirmed, params.secureToken]);
+
+  useEffect(() => {
+    if (!currentGuideExpiresAt || new URLSearchParams(window.location.search).get('preview') === '1') return;
+    const closeGuide = () => {
+      setGuideState('missing');
+      setChatOpen(false);
+      setChatMessages([]);
+      setSelectedEquipment(null);
+    };
+    let timeout = 0;
+    const checkExpiry = () => {
+      const remainingMs = currentGuideExpiresAt.getTime() - Date.now();
+      if (remainingMs <= 0) {
+        closeGuide();
+        return;
+      }
+      timeout = window.setTimeout(checkExpiry, Math.min(remainingMs, 2_147_000_000));
+    };
+    checkExpiry();
+    return () => window.clearTimeout(timeout);
+  }, [currentGuideExpiresAt]);
 
   useEffect(() => {
     if (!property.id || !ownerId) return;
@@ -575,7 +701,9 @@ export default function PublicBookletPage() {
     setChatError('');
     setChatMessages([]);
     setGuestId('');
-    const savedGuestName = window.localStorage.getItem('monlivret:guest-name') ?? '';
+    const savedGuestName = guestNameConfirmed && guestName.trim()
+      ? guestName
+      : window.localStorage.getItem('monlivret:guest-name') ?? '';
     setGuestName(savedGuestName);
     setGuestNameConfirmed(Boolean(savedGuestName));
     setChatConnecting(true);
@@ -594,16 +722,68 @@ export default function PublicBookletPage() {
     setGuestNameConfirmed(true);
   };
 
+  const confirmQrGuestIdentity = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const firstName = guestFirstName.trim().replace(/\s+/g, ' ');
+    const lastName = guestLastName.trim().replace(/\s+/g, ' ');
+    if (!firstName || !lastName) {
+      setChatError('Saisissez votre prénom et votre nom pour continuer.');
+      return;
+    }
+    const fullName = `${firstName} ${lastName}`;
+    setGuestName(fullName);
+    writeQrIdentityCookie(params.secureToken, { firstName, lastName }, currentGuideExpiresAt);
+    setChatError('');
+    setGuideState('loading');
+    setGuestNameConfirmed(true);
+    setQrIdentityConfirmed(true);
+  };
+
   const selectNearbyFilter = (filter: NearbyFilter) => {
     setNearbyFilter(filter);
   };
 
-  if (guideState === 'missing') {
-    return <main className="flex min-h-screen items-center justify-center bg-[#f3eee8] px-6 text-center text-[#142c3f]"><div className="max-w-md rounded-[2rem] bg-white p-8 shadow-[0_20px_60px_rgba(20,44,63,.12)]"><Home className="mx-auto h-10 w-10 text-[#d9694d]" /><h1 className="mt-5 font-serif text-3xl font-semibold">Guide indisponible</h1><p className="mt-3 text-sm leading-6 text-[#66747a]">Ce lien n’existe pas, ou le guide de ce logement n’est pas encore publié.</p></div></main>;
+  if (currentGuideState === 'missing') {
+    return <main className="flex min-h-screen items-center justify-center bg-[#f3eee8] px-6 text-center text-[#142c3f]"><div className="max-w-md rounded-[2rem] bg-white p-8 shadow-[0_20px_60px_rgba(20,44,63,.12)]"><Home className="mx-auto h-10 w-10 text-[#d9694d]" /><h1 className="mt-5 font-serif text-3xl font-semibold">Guide indisponible</h1><p className="mt-3 text-sm leading-6 text-[#66747a]">Le livret n’est pas accessible pour le moment. Vérifiez la période de votre séjour avec votre hôte.</p></div></main>;
   }
 
-  if (guideState === 'loading') {
+  if (currentGuideState === 'loading') {
     return <main className="flex min-h-screen items-center justify-center bg-[#f3eee8] text-sm font-medium text-[#66747a]">Chargement de votre guide…</main>;
+  }
+
+  if (currentGuideState === 'identity') {
+    return (
+      <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#f6f3ed] px-5 py-8 text-[#1f2925]">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-[#e9d7c9]/35 blur-3xl" />
+        <form onSubmit={confirmQrGuestIdentity} className="relative w-full max-w-[430px] rounded-[1.75rem] border border-[#e9e3da] bg-[#fffdfa] p-6 shadow-[0_18px_55px_rgba(31,41,37,.07)] sm:p-8">
+          <div className="flex items-center justify-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#f7eee8] text-[#d9694d]"><ShieldCheck size={17} strokeWidth={1.8} /></span>
+            <p className="text-[10px] font-bold uppercase tracking-[.17em] text-[#a56853]">Livret du logement</p>
+          </div>
+          <h1 className="mt-6 text-center font-serif text-[2rem] font-medium leading-tight tracking-[-.035em]">Bienvenue</h1>
+          <p className="mx-auto mt-2 max-w-xs text-center text-sm leading-6 text-[#758078]">Avant d’ouvrir le livret, indiquez votre prénom et votre nom.</p>
+
+          <div className="mt-7 space-y-4">
+            <label className="block text-[13px] font-semibold text-[#35413b]">
+              Prénom
+              <input value={guestFirstName} onChange={(event) => { setGuestFirstName(event.target.value); setChatError(''); }} autoComplete="given-name" maxLength={60} className="mt-2 h-12 w-full rounded-xl border border-[#e5dfd6] bg-white px-3.5 text-base font-normal text-[#1f2925] outline-none transition placeholder:text-[#a0a7a1] hover:border-[#d7cfc4] focus:border-[#56786c] focus:ring-4 focus:ring-[#56786c]/10 sm:text-sm" required />
+            </label>
+            <label className="block text-[13px] font-semibold text-[#35413b]">
+              Nom
+              <input value={guestLastName} onChange={(event) => { setGuestLastName(event.target.value); setChatError(''); }} autoComplete="family-name" maxLength={80} className="mt-2 h-12 w-full rounded-xl border border-[#e5dfd6] bg-white px-3.5 text-base font-normal text-[#1f2925] outline-none transition placeholder:text-[#a0a7a1] hover:border-[#d7cfc4] focus:border-[#56786c] focus:ring-4 focus:ring-[#56786c]/10 sm:text-sm" required />
+            </label>
+          </div>
+
+          {chatError && <p role="alert" className="mt-4 rounded-xl bg-[#fdeceb] px-3 py-2 text-sm text-[#b8453c]">{chatError}</p>}
+
+          <button type="submit" disabled={!guestFirstName.trim() || !guestLastName.trim()} className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#19344a] px-4 text-sm font-semibold text-white transition hover:bg-[#24475f] disabled:cursor-not-allowed disabled:bg-[#aeb4b0]">
+            <ArrowRight size={16} /> Continuer
+          </button>
+
+          <p className="mt-4 border-t border-[#efebe5] pt-4 text-center text-[11px] leading-5 text-[#8a928c]">Votre identité restera mémorisée sur cet appareil pendant la validité de ce QR code.</p>
+        </form>
+      </main>
+    );
   }
 
   return (
@@ -787,11 +967,11 @@ export default function PublicBookletPage() {
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3.5">
                   <div className="min-w-0">
                     <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/48">{copy.yourHome}</p>
-                    <p className="mt-1 break-words font-serif text-[17px] font-semibold leading-tight text-white">{property.name}</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] font-medium uppercase tracking-[0.1em] text-white/65">
-                      <span>{property.type || 'Logement'}</span>
+                    <p title={property.name} className="mt-1 truncate font-serif text-[17px] font-semibold leading-tight text-white">{property.name}</p>
+                    <div className="mt-2 flex min-w-0 items-center gap-x-2 overflow-hidden whitespace-nowrap text-[9px] font-medium uppercase tracking-[0.1em] text-white/65">
+                      <span className="min-w-0 truncate">{property.type || 'Logement'}</span>
                       <span aria-hidden="true" className="h-1 w-1 rounded-full bg-white/45" />
-                      <span>{property.capacity} voyageur{property.capacity > 1 ? 's' : ''}</span>
+                      <span className="shrink-0">{property.capacity} voyageur{property.capacity > 1 ? 's' : ''}</span>
                     </div>
                   </div>
                   <div
@@ -1064,9 +1244,6 @@ export default function PublicBookletPage() {
                     <span className="absolute left-4 top-4 rounded-full bg-white/92 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#687780] shadow-sm backdrop-blur">
                       Guide {String(index + 1).padStart(2, '0')}
                     </span>
-                    <span className="absolute bottom-4 right-4 flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#d9694d] shadow-lg">
-                      <equipment.icon size={20} fill={equipment.icon === Play ? 'currentColor' : 'none'} />
-                    </span>
                   </div>
                   <div className="p-5">
                     <div className="flex items-end justify-between gap-4">
@@ -1182,7 +1359,7 @@ export default function PublicBookletPage() {
                   </div>
                 </div>
 
-                <div className="relative mt-3 overflow-hidden rounded-[1.35rem] border border-[#142c3f]/8 bg-white shadow-sm">
+                <div className={`relative mt-3 overflow-hidden rounded-[1.35rem] border border-[#142c3f]/8 bg-white shadow-sm ${departureComplete ? 'departure-list-complete' : ''}`}>
                   {checkoutTasks.map((task, index) => {
                     const checked = checkedTasks.includes(index);
                     return (
@@ -1221,13 +1398,18 @@ export default function PublicBookletPage() {
                 </div>
 
                 {departureComplete && (
-                  <div className="departure-complete relative mt-4 overflow-hidden rounded-[1.35rem] bg-[#367566] p-5 text-white shadow-[0_16px_28px_rgba(54,117,102,0.25)]">
+                  <div role="status" aria-live="polite" className="departure-complete relative mt-4 flex min-h-[116px] items-center gap-4 overflow-hidden rounded-[1.35rem] bg-[#367566] p-5 text-white shadow-[0_16px_28px_rgba(54,117,102,0.25)]">
+                    <div className="departure-complete__glow" aria-hidden="true" />
                     <div className="departure-confetti" aria-hidden="true">
-                      {Array.from({ length: 18 }, (_, index) => <span key={index} style={{ '--confetti-index': index } as CSSProperties} />)}
+                      {departureConfetti.map((style, index) => <span key={index} style={style} />)}
                     </div>
-                    <div className="relative">
-                      <p className="text-base font-semibold">Tout est prêt, merci !</p>
-                      <p className="mt-1 text-sm leading-5 text-white/78">Votre départ est préparé. Nous vous souhaitons un excellent retour.</p>
+                    <div className="departure-complete__badge relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/12 shadow-[0_8px_20px_rgba(13,47,39,0.18)]">
+                      <Check size={24} strokeWidth={2.5} />
+                    </div>
+                    <div className="relative z-10">
+                      <p className="departure-complete__title text-base font-semibold">Tout est prêt, merci !</p>
+                      <p className="departure-complete__message mt-1 text-sm leading-5 text-white/80">Votre départ est préparé. Nous vous souhaitons un excellent retour.</p>
+                      <p className="departure-complete__caption mt-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/65">Départ validé · Bonne route</p>
                     </div>
                   </div>
                 )}
@@ -1500,7 +1682,7 @@ export default function PublicBookletPage() {
             role="dialog"
             aria-modal="true"
             aria-label={`Guide ${selectedEquipment.title}`}
-            className={`fixed inset-0 z-[70] mx-auto flex max-w-[560px] flex-col overflow-hidden overscroll-none bg-[#f4f1ed] ${isClosingEquipment ? 'guest-equipment-leave' : 'guest-equipment-enter'}`}
+            className={`fixed inset-0 z-[110] mx-auto flex max-w-[560px] flex-col overflow-hidden overscroll-none bg-[#f4f1ed] ${isClosingEquipment ? 'guest-equipment-leave' : 'guest-equipment-enter'}`}
           >
             <div className="relative h-[30vh] min-h-[250px] shrink-0 overflow-hidden bg-[#e8e3dd]">
               <Image
@@ -1557,18 +1739,13 @@ export default function PublicBookletPage() {
               className="guest-scrollbar -mt-5 flex-1 touch-pan-y overflow-y-auto overscroll-contain rounded-t-[2rem] bg-[#fbfaf8] px-5 pb-12 pt-7"
             >
               <section className="rounded-[1.6rem] border border-[#142c3f]/7 bg-white p-5 shadow-[0_12px_35px_rgba(20,44,63,0.06)]">
-                <div className="flex items-start gap-4">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f4e5df] text-[#d9694d]">
-                    <selectedEquipment.icon size={21} strokeWidth={1.8} />
-                  </span>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8b8f90]">
-                      Bon à savoir
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-[#566871]">
-                      {selectedEquipment.description}
-                    </p>
-                  </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8b8f90]">
+                    Bon à savoir
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-[#566871]">
+                    {selectedEquipment.description}
+                  </p>
                 </div>
               </section>
 
@@ -1649,45 +1826,38 @@ export default function PublicBookletPage() {
                       (equipment) =>
                         equipment.title !== selectedEquipment.title
                     )
-                    .map((equipment) => {
-                      const EquipmentIcon = equipment.icon;
-
-                      return (
-                        <button
-                          key={equipment.title}
-                          type="button"
-                          onClick={() => openEquipmentGuide(equipment)}
-                          className="w-[190px] shrink-0 snap-start overflow-hidden rounded-[1.4rem] border border-[#142c3f]/8 bg-white text-left shadow-[0_10px_28px_rgba(20,44,63,0.06)]"
-                        >
-                          <div className="relative h-28 overflow-hidden bg-[#e8e3dd]">
-                            <Image
-                              src={equipment.image}
-                              alt={equipment.title}
-                              fill
-                              unoptimized
-                              sizes="190px"
-                              className="object-cover"
-                            />
-                            <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-[#d9694d] shadow-sm">
-                              <EquipmentIcon size={15} />
-                            </span>
+                    .map((equipment) => (
+                      <button
+                        key={equipment.title}
+                        type="button"
+                        onClick={() => openEquipmentGuide(equipment)}
+                        className="w-[190px] shrink-0 snap-start overflow-hidden rounded-[1.4rem] border border-[#142c3f]/8 bg-white text-left shadow-[0_10px_28px_rgba(20,44,63,0.06)]"
+                      >
+                        <div className="relative h-28 overflow-hidden bg-[#e8e3dd]">
+                          <Image
+                            src={equipment.image}
+                            alt={equipment.title}
+                            fill
+                            unoptimized
+                            sizes="190px"
+                            className="object-cover"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-2 p-4">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold">
+                              {equipment.title}
+                            </p>
+                            <p className="mt-1 truncate text-[11px] text-[#7b8589]">
+                              {equipment.subtitle}
+                            </p>
                           </div>
-                          <div className="flex items-center justify-between gap-2 p-4">
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold">
-                                {equipment.title}
-                              </p>
-                              <p className="mt-1 truncate text-[11px] text-[#7b8589]">
-                                {equipment.subtitle}
-                              </p>
-                            </div>
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f3eee8] text-[#d9694d]">
-                              <ChevronRight size={15} />
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f3eee8] text-[#d9694d]">
+                            <ChevronRight size={15} />
+                          </span>
+                        </div>
+                      </button>
+                    ))}
                 </div>
               </section>
             </div>

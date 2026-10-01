@@ -20,6 +20,8 @@ import {
 import AdminSidebar from '@/components/layout/AdminSidebar';
 import { Badge } from '@/components/ui/badge';
 import { type AdminGuideEvent, useAdminData } from '@/hooks/useAdminData';
+import BillingDashboard from './BillingDashboard';
+import UserManagementDashboard from './UserManagementDashboard';
 
 const pageMeta = {
   utilisateurs: { title: 'Utilisateurs', description: 'Tous les comptes présents sur la plateforme.', icon: Users },
@@ -27,7 +29,7 @@ const pageMeta = {
   roles: { title: 'Rôles et permissions', description: 'Répartition des droits des comptes actifs.', icon: Shield },
   support: { title: 'Demandes d’assistance', description: 'Suivi des interactions et de l’activité récente.', icon: LifeBuoy },
   abonnements: { title: 'Abonnements', description: 'Plans souscrits et état des abonnements.', icon: CreditCard },
-  facturation: { title: 'Facturation', description: 'Vue de suivi basée sur les abonnements actifs.', icon: CircleDollarSign },
+  facturation: { title: 'Facturation', description: 'Abonnements en direct et revenus estimés à partir des offres.', icon: CircleDollarSign },
   rapports: { title: 'Rapports', description: 'Indicateurs live de la plateforme.', icon: FileBarChart },
   audit: { title: 'Journal d’audit', description: 'Événements enregistrés dans les livrets publics.', icon: ClipboardList },
   parametres: { title: 'Paramètres généraux', description: 'État actuel des données de la plateforme.', icon: Settings },
@@ -81,11 +83,9 @@ export default function AdminSectionPage() {
     if (data.isLoading) return <Empty message="Chargement des données en direct…" />;
     if (data.error) return <Empty message={data.error} />;
 
-    if (section === 'utilisateurs') return data.profiles.length ? (
-      <Table headers={['Utilisateur', 'E-mail', 'Rôle', 'Formule']}>
-        {data.profiles.map((profile) => <tr key={profile.id}><Cell>{asText(profile.fullName, 'Compte sans nom')}</Cell><Cell>{asText(profile.email)}</Cell><Cell><StatusBadge value={profile.role} /></Cell><Cell>{asText(profile.subscriptionPlan, 'free')}</Cell></tr>)}
-      </Table>
-    ) : <Empty message="Aucun utilisateur n’est encore enregistré." />;
+    if (section === 'facturation') return <BillingDashboard profiles={data.profiles} properties={data.properties} />;
+
+    if (section === 'utilisateurs') return <UserManagementDashboard profiles={data.profiles} />;
 
     if (section === 'organisations') return organizations.length ? (
       <Table headers={['Organisation', 'Responsable', 'Logements', 'Statut']}>
@@ -105,9 +105,9 @@ export default function AdminSectionPage() {
       </Table>
     ) : <Empty message="Aucune interaction à traiter pour le moment." />;
 
-    if (section === 'abonnements' || section === 'facturation') return data.profiles.length ? (
-      <Table headers={section === 'abonnements' ? ['Client', 'Formule', 'État', 'Logements'] : ['Client', 'Formule', 'État', 'Référence']}>
-        {data.profiles.map((profile) => <tr key={profile.id}><Cell>{asText(profile.fullName, profile.email ?? 'Compte')}</Cell><Cell>{asText(profile.subscriptionPlan, 'free')}</Cell><Cell><StatusBadge value={profile.subscriptionStatus} /></Cell><Cell>{section === 'abonnements' ? data.properties.filter((property) => property.ownerId === profile.id).length : `Profil ${profile.id.slice(0, 8)}`}</Cell></tr>)}
+    if (section === 'abonnements') return data.profiles.length ? (
+      <Table headers={['Client', 'Formule', 'État', 'Logements']}>
+        {data.profiles.map((profile) => <tr key={profile.id}><Cell>{asText(profile.fullName, profile.email ?? 'Compte')}</Cell><Cell>{asText(profile.subscriptionPlan, 'free')}</Cell><Cell><StatusBadge value={profile.subscriptionStatus} /></Cell><Cell>{data.properties.filter((property) => property.ownerId === profile.id).length}</Cell></tr>)}
       </Table>
     ) : <Empty message="Les informations de facturation apparaîtront après les premières inscriptions." />;
 

@@ -18,6 +18,7 @@ import {
   Zap,
 } from 'lucide-react';
 import PricingCard from '@/components/marketing/PricingCard';
+import { SUBSCRIPTION_PRICING } from '@/config/subscription-pricing';
 import {
   Accordion,
   AccordionContent,
@@ -106,9 +107,9 @@ export default function PricingPage() {
     {
       title: 'Pro',
       audience: '6 à 25 logements',
-      price: isAnnual ? '39 €' : '49 €',
+      price: `${isAnnual ? SUBSCRIPTION_PRICING.pro.annualMonthlyEquivalent : SUBSCRIPTION_PRICING.pro.monthly} €`,
       period: '/ mois',
-      priceNote: isAnnual ? '468 € facturés annuellement' : 'Facturation mensuelle',
+      priceNote: isAnnual ? `${SUBSCRIPTION_PRICING.pro.annualTotal} € facturés annuellement` : 'Facturation mensuelle',
       description:
         'Pour centraliser vos logements, gagner du temps et piloter vos performances.',
       valueNote: isAnnual
@@ -129,9 +130,9 @@ export default function PricingPage() {
     {
       title: 'Business',
       audience: 'Conciergeries & équipes',
-      price: isAnnual ? '79 €' : '99 €',
+      price: `${isAnnual ? SUBSCRIPTION_PRICING.business.annualMonthlyEquivalent : SUBSCRIPTION_PRICING.business.monthly} €`,
       period: '/ mois',
-      priceNote: isAnnual ? '948 € facturés annuellement' : 'Facturation mensuelle',
+      priceNote: isAnnual ? `${SUBSCRIPTION_PRICING.business.annualTotal} € facturés annuellement` : 'Facturation mensuelle',
       description:
         'Pour déployer une expérience de marque cohérente, sans limite de volume.',
       valueNote: 'Un accompagnement dédié pour déployer plus vite.',

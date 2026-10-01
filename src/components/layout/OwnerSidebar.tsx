@@ -26,7 +26,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: 'Tableau de bord', href: ROUTES.OWNER_DASHBOARD },
   { icon: Home, label: 'Logements', href: ROUTES.OWNER_PROPERTIES },
   { icon: BookOpen, label: 'Livrets', href: ROUTES.OWNER_BOOKLETS },
-  { icon: Calendar, label: 'Réservations', href: ROUTES.OWNER_RESERVATIONS },
+  { icon: Calendar, label: 'Accès voyageurs', href: ROUTES.OWNER_RESERVATIONS },
   { icon: Users, label: 'Voyageurs', href: ROUTES.OWNER_TRAVELERS },
   { icon: CreditCard, label: 'Abonnement', href: ROUTES.OWNER_SUBSCRIPTION },
   { icon: Settings, label: 'Réglages', href: ROUTES.OWNER_SETTINGS },
