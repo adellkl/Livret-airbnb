@@ -10,7 +10,10 @@ const patterns = [
   /\bsk_(?:live|test)_[A-Za-z0-9]{20,}\b/,
   /\bxox[baprs]-[A-Za-z0-9-]{20,}\b/,
   /"type"\s*:\s*"service_account"/,
-  /(?:password|passwd|api_secret|client_secret|access_token|refresh_token)\s*[:=]\s*["'][^"'/\s][^"'\s]{15,}["']/i,
+  // Catch even short hard-coded credentials; minimum-length heuristics miss demo passwords.
+  /\b\w*(?:password|passwd|pass|secret|client[_-]?secret|private[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|webhook[_-]?secret)\s*[:=]\s*(["'])(?!\/)[^"']+\1/i,
+  // Also catch non-empty values in environment-file style assignments.
+  /^[ \t]*[A-Z0-9_]*(?:PASSWORD|PASSWD|SECRET|PRIVATE_KEY|ACCESS_TOKEN|REFRESH_TOKEN|AUTH_TOKEN)[ \t]*=[ \t]*[^\s#]+/im,
 ];
 const sensitivePath = (path) => /(?:^|\/)\.env(?:\.|$)/.test(path) && !path.endsWith('/.env.example') && path !== '.env.example'
   || /\.(?:pem|key|p12|pfx|swp|swo)$/.test(path)
@@ -19,9 +22,20 @@ const hasSecret = (value) => patterns.some((pattern) => pattern.test(value));
 const issues = new Set();
 
 if (process.argv.includes('--history')) {
-  // Inspect every reachable commit, including deleted files, without echoing values.
-  const history = git('log', '--all', '-p', '--format=', '--no-ext-diff', '--no-textconv');
-  if (hasSecret(history)) issues.add('Un secret potentiel apparaît dans l’historique Git.');
+  // Inspect every reachable version of changed files without printing secret values.
+  const commits = git('rev-list', '--all').trim().split('\n').filter(Boolean);
+  for (const commit of commits) {
+    const paths = git('diff-tree', '--root', '--no-commit-id', '--diff-filter=AM', '--name-only', '-r', commit)
+      .split('\n')
+      .filter(Boolean);
+    for (const path of paths) {
+      if (sensitivePath(path)) issues.add(`Fichier sensible dans l’historique : ${path}`);
+      const content = execFileSync('git', ['show', `${commit}:${path}`], { maxBuffer: 16 * 1024 * 1024 });
+      if (!content.includes(0) && hasSecret(content.toString('utf8'))) {
+        issues.add(`Secret potentiel dans l’historique : ${path}`);
+      }
+    }
+  }
 } else {
   // Check both index and working tree; never inspect ignored local credentials.
   const paths = git('ls-files', '-z').split('\0').filter(Boolean);

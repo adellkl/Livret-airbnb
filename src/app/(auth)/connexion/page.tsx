@@ -7,7 +7,7 @@ import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, LayoutDashboard, Mail, Shiel
 import { ROUTES } from '@/config/routes';
 import { firebaseAuth, firebaseAuthReady, firestore } from '@/lib/firebase/client';
 import { doc, getDoc } from 'firebase/firestore';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { browserLocalPersistence, browserSessionPersistence, setPersistence, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import AuthShell from '@/components/auth/AuthShell';
 import AuthCard from '@/components/auth/AuthCard';
 import AccountTypeSelector from '@/components/auth/AccountTypeSelector';
@@ -39,6 +39,7 @@ export default function LoginPage() {
     setError('');
     try {
       await firebaseAuthReady;
+      await setPersistence(firebaseAuth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
       const credential = await signInWithEmailAndPassword(
         firebaseAuth,
         email.trim().toLowerCase(),

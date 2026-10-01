@@ -72,7 +72,7 @@ export const DEFAULT_OWNER_PROPERTIES: OwnerProperty[] = [
     checkIn: '15:00',
     checkOut: '11:00',
     wifiName: 'Atelier_Batignolles',
-    wifiPassword: 'bienvenue2025',
+    wifiPassword: '',
     description:
       'Un appartement lumineux et chaleureux au cœur des Batignolles.',
     hostName: 'Marie Dupont',
@@ -97,7 +97,7 @@ export const DEFAULT_OWNER_PROPERTIES: OwnerProperty[] = [
     checkIn: '16:00',
     checkOut: '10:00',
     wifiName: 'Villa_Belle_Vue',
-    wifiPassword: 'soleil2026',
+    wifiPassword: '',
     description: 'Une villa avec vue mer, piscine et jardin méditerranéen.',
     hostName: 'Sophie Martin',
     hostPhone: '+33 6 22 45 78 90',

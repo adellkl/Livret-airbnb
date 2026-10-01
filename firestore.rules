@@ -27,6 +27,10 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/properties/$(propertyId)).data.get('isDeleting', false) != true;
     }
 
+    function keepsPropertyId() {
+      return request.resource.data.propertyId == resource.data.propertyId;
+    }
+
     function isAdmin() {
       return accountIsActive()
         && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'admin';
@@ -39,7 +43,6 @@ service cloud.firestore {
           && request.resource.data.subscriptionPlan == 'free'
           && request.resource.data.get('accountStatus', 'active') == 'active';
         allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
-        allow delete: if signedIn() && request.auth.uid == userId;
         allow update: if isAdmin()
           || (accountIsActive()
             && request.auth.uid == userId
@@ -62,49 +65,49 @@ service cloud.firestore {
     match /guide_sections/{documentId} {
       allow create: if ownsActiveProperty(request.resource.data.propertyId);
       allow read: if ownsProperty(resource.data.propertyId) || isAdmin();
-      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow update: if ownsActiveProperty(resource.data.propertyId) && keepsPropertyId();
       allow delete: if ownsProperty(resource.data.propertyId);
     }
 
     match /property_amenities/{documentId} {
       allow create: if ownsActiveProperty(request.resource.data.propertyId);
       allow read: if ownsProperty(resource.data.propertyId) || isAdmin();
-      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow update: if ownsActiveProperty(resource.data.propertyId) && keepsPropertyId();
       allow delete: if ownsProperty(resource.data.propertyId);
     }
 
     match /equipment_guides/{documentId} {
       allow create: if ownsActiveProperty(request.resource.data.propertyId);
       allow read: if ownsProperty(resource.data.propertyId) || isAdmin();
-      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow update: if ownsActiveProperty(resource.data.propertyId) && keepsPropertyId();
       allow delete: if ownsProperty(resource.data.propertyId);
     }
 
     match /property_house_rules/{documentId} {
       allow create: if ownsActiveProperty(request.resource.data.propertyId);
       allow read: if ownsProperty(resource.data.propertyId) || isAdmin();
-      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow update: if ownsActiveProperty(resource.data.propertyId) && keepsPropertyId();
       allow delete: if ownsProperty(resource.data.propertyId);
     }
 
     match /property_faqs/{documentId} {
       allow create: if ownsActiveProperty(request.resource.data.propertyId);
       allow read: if ownsProperty(resource.data.propertyId) || isAdmin();
-      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow update: if ownsActiveProperty(resource.data.propertyId) && keepsPropertyId();
       allow delete: if ownsProperty(resource.data.propertyId);
     }
 
     match /nearby_places/{documentId} {
       allow create: if ownsActiveProperty(request.resource.data.propertyId);
       allow read: if ownsProperty(resource.data.propertyId) || isAdmin();
-      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow update: if ownsActiveProperty(resource.data.propertyId) && keepsPropertyId();
       allow delete: if ownsProperty(resource.data.propertyId);
     }
 
     match /reservations/{documentId} {
       allow create: if ownsActiveProperty(request.resource.data.propertyId);
       allow read: if ownsProperty(resource.data.propertyId) || isAdmin();
-      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow update: if ownsActiveProperty(resource.data.propertyId) && keepsPropertyId();
       allow delete: if ownsProperty(resource.data.propertyId);
     }
 
@@ -113,7 +116,6 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('isDeleting', false) != true
         && request.resource.data.ownerId == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.ownerId;
       allow read: if ownsProperty(resource.data.propertyId) || isAdmin();
-      allow update: if ownsActiveProperty(resource.data.propertyId);
       allow delete: if ownsProperty(resource.data.propertyId);
     }
 
@@ -134,7 +136,6 @@ service cloud.firestore {
         || ownsProperty(resource.data.propertyId)
         || isAdmin()
         || (signedIn() && resource.data.guestId == request.auth.uid);
-      allow update: if ownsActiveProperty(resource.data.propertyId);
       allow delete: if ownsProperty(resource.data.propertyId);
     }
 
@@ -157,7 +158,6 @@ service cloud.firestore {
       // `where('ownerId', '==', uid)` query used by the owner inbox.
       allow read: if (accountIsActive() && resource.data.ownerId == request.auth.uid)
         || (signedIn() && resource.data.guestId == request.auth.uid);
-      allow update: if ownsActiveProperty(resource.data.propertyId);
       allow delete: if ownsProperty(resource.data.propertyId);
     }
 
@@ -185,9 +185,12 @@ service cloud.firestore {
       // Owner-only writes allow a property guide to store its stay window.
       allow create: if signedIn()
         && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.propertyId == guideToken
         && (ownsActiveProperty(request.resource.data.propertyId)
           || ownsPropertyAfter(request.resource.data.propertyId));
-      allow update: if ownsActiveProperty(resource.data.propertyId);
+      allow update: if ownsActiveProperty(resource.data.propertyId)
+        && keepsPropertyId()
+        && request.resource.data.ownerId == resource.data.ownerId;
       allow delete: if ownsProperty(resource.data.propertyId);
     }
 

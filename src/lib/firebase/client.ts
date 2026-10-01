@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth';
+import { browserSessionPersistence, getAuth, setPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
@@ -17,11 +17,11 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const firebaseAuth = getAuth(app);
 
-// The owner session is intentionally retained across refreshes and browser restarts.
+// Sessions expire when the browser closes unless the login form opts into "remember me".
 // Pages can await this promise before relying on `currentUser`.
 export const firebaseAuthReady = setPersistence(
   firebaseAuth,
-  browserLocalPersistence,
+  browserSessionPersistence,
 ).then(() => firebaseAuth.authStateReady());
 
 export const firestore = getFirestore(app);
