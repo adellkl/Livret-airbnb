@@ -1,6 +1,16 @@
 import type { NextConfig } from "next";
 
+const firebaseProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "livret-airbnb-a871e";
+
 const nextConfig: NextConfig = {
+  async rewrites() {
+    return [
+      {
+        source: "/__/auth/:path*",
+        destination: `https://${firebaseProjectId}.firebaseapp.com/__/auth/:path*`,
+      },
+    ];
+  },
   async headers() {
     return ['/guide/:path*', '/proprietaire/:path*', '/admin/:path*', '/connexion', '/inscription', '/mot-de-passe-oublie', '/reinitialiser-mot-de-passe', '/api/:path*'].map((source) => ({
       source,

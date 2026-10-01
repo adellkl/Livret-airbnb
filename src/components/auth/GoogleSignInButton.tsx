@@ -8,6 +8,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signInWithRedirect,
+  signOut,
   type UserCredential,
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -21,29 +22,77 @@ type GoogleSignInButtonProps = {
   onError: (message: string) => void;
 };
 
+function googleSignInErrorMessage(error: unknown) {
+  const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+  const detail = error instanceof Error ? error.message : '';
+  const reason = `${code} ${detail}`;
+
+  if (reason.includes('auth/unauthorized-domain')) {
+    return `Le domaine ${window.location.hostname} n’est pas autorisé dans Firebase Authentication. Ajoutez-le dans Authentication → Paramètres → Domaines autorisés.`;
+  }
+  if (reason.includes('auth/operation-not-allowed')) {
+    return 'La connexion Google n’est pas activée dans Firebase Authentication.';
+  }
+  if (reason.includes('auth/popup-closed-by-user')) {
+    return 'La fenêtre Google a été fermée avant la fin de la connexion. Réessayez.';
+  }
+  if (reason.includes('auth/popup-blocked')) {
+    return 'Le navigateur a bloqué la fenêtre Google. Autorisez les fenêtres surgissantes ou ouvrez le site dans un navigateur classique.';
+  }
+  if (reason.includes('auth/network-request-failed')) {
+    return 'La connexion à Google a échoué. Vérifiez votre connexion internet et réessayez.';
+  }
+  if (reason.includes('permission-denied')) {
+    return 'Google a répondu, mais Firebase a refusé l’accès au profil. Vérifiez les règles Firestore du projet de production.';
+  }
+  if (reason.includes('app/google-profile-timeout')) {
+    return 'Google vous a connecté, mais Firebase tarde à ouvrir le profil. Vérifiez les règles Firestore et la configuration du projet de production.';
+  }
+  if (reason.includes('auth/web-storage-unsupported') || reason.includes('auth/operation-not-supported-in-this-environment')) {
+    return 'Ce navigateur bloque le stockage nécessaire à la connexion. Ouvrez le site dans un navigateur classique.';
+  }
+  return 'La connexion Google n’a pas abouti. Vérifiez la configuration OAuth de production puis réessayez.';
+}
+
+function withTimeout<T>(operation: Promise<T>, timeoutMs = 20_000) {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error('app/google-profile-timeout')), timeoutMs);
+    operation.then(
+      (value) => { window.clearTimeout(timeout); resolve(value); },
+      (error: unknown) => { window.clearTimeout(timeout); reject(error); },
+    );
+  });
+}
+
 export default function GoogleSignInButton({ className, onError }: GoogleSignInButtonProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
   const finishGoogleSignIn = useCallback(async (credential: UserCredential) => {
     const profileRef = doc(firestore, 'profiles', credential.user.uid);
-    const existingProfile = await getDoc(profileRef);
+    const existingProfile = await withTimeout(getDoc(profileRef));
     let role = existingProfile.data()?.role;
 
+    if (['suspended', 'deleting'].includes(existingProfile.data()?.accountStatus)) {
+      await signOut(firebaseAuth);
+      onError('Ce compte est suspendu. Contactez un administrateur.');
+      return;
+    }
+
     if (!existingProfile.exists()) {
-      await createOwnerProfile({
+      await withTimeout(createOwnerProfile({
         uid: credential.user.uid,
         email: credential.user.email,
         fullName: credential.user.displayName ?? '',
         organizationName: '',
         activityType: '',
-      });
+      }));
       role = 'owner';
     }
 
     router.replace(role === 'admin' ? ROUTES.ADMIN_DASHBOARD : ROUTES.OWNER_DASHBOARD);
     router.refresh();
-  }, [router]);
+  }, [onError, router]);
 
   useEffect(() => {
     let active = true;
@@ -51,13 +100,14 @@ export default function GoogleSignInButton({ className, onError }: GoogleSignInB
       try {
         await firebaseAuthReady;
         const credential = await getRedirectResult(firebaseAuth);
-        if (credential && active) await finishGoogleSignIn(credential);
+        if (credential && active) {
+          await finishGoogleSignIn(credential);
+        } else if (active) {
+          setIsLoading(false);
+        }
       } catch (error) {
         if (active) {
-          const code = error instanceof Error ? error.message : '';
-          onError(code.includes('auth/unauthorized-domain')
-            ? 'Ce domaine n’est pas autorisé par Firebase. Ajoutez votre domaine Vercel dans Firebase Authentication → Domaines autorisés.'
-            : 'La connexion Google n’a pas abouti. Réessayez ou utilisez votre adresse e-mail.');
+          onError(googleSignInErrorMessage(error));
           setIsLoading(false);
         }
       }
@@ -75,21 +125,20 @@ export default function GoogleSignInButton({ className, onError }: GoogleSignInB
       const credential = await signInWithPopup(firebaseAuth, new GoogleAuthProvider());
       await finishGoogleSignIn(credential);
     } catch (signInError) {
-      const code = signInError instanceof Error ? signInError.message : '';
-      if (code.includes('auth/unauthorized-domain')) {
-        onError('Ce domaine n’est pas autorisé par Firebase. Ajoutez localhost dans Authentication → Paramètres → Domaines autorisés.');
-      } else if (code.includes('auth/popup-blocked')) {
-        // The popup is not available in some embedded browsers. Redirecting in
-        // the same tab is reliable there and returns here after Google login.
-        await signInWithRedirect(firebaseAuth, new GoogleAuthProvider());
-        return;
-      } else if (code.includes('auth/popup-closed-by-user')) {
-        onError('La fenêtre de connexion Google a été fermée avant la fin. Réessayez.');
-      } else if (code.includes('auth/operation-not-allowed')) {
-        onError('La connexion Google doit être activée dans Firebase Authentication.');
+      const code = signInError && typeof signInError === 'object' && 'code' in signInError ? String(signInError.code) : '';
+      if (code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user') {
+        // Some embedded browsers close the Firebase popup before its result
+        // reaches the app. Retry the same Google sign-in in the current tab.
+        try {
+          await signInWithRedirect(firebaseAuth, new GoogleAuthProvider());
+          return;
+        } catch (redirectError) {
+          onError(googleSignInErrorMessage(redirectError));
+        }
       } else {
-        onError('La connexion Google n’a pas abouti. Réessayez ou utilisez votre adresse e-mail.');
+        onError(googleSignInErrorMessage(signInError));
       }
+    } finally {
       setIsLoading(false);
     }
   };
