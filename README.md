@@ -50,7 +50,6 @@ firebase deploy --only firestore:rules,storage --project VOTRE_PROJET_FIREBASE
 - `src/lib` : logique métier et connexion Firebase.
 - `tests` : tests automatisés.
 - `firestore.rules` et `storage.rules` : autorisations Firebase.
-- `supabase/migrations` : anciennes migrations conservées pour l’historique ; l’application actuelle utilise Firebase.
 
 **Stack :** Next.js, React, TypeScript, Tailwind CSS et Firebase.
 
