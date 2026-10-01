@@ -35,7 +35,7 @@ const ownerMenuItems = [
   { label: 'Mes logements', href: ROUTES.OWNER_PROPERTIES, icon: Building2 },
   { label: 'Livrets', href: ROUTES.OWNER_BOOKLETS, icon: BookOpen },
   { label: 'Nouveau logement', href: ROUTES.OWNER_PROPERTY_NEW, icon: Plus },
-  { label: 'Réservations', href: ROUTES.OWNER_RESERVATIONS, icon: Calendar },
+  { label: 'Accès voyageurs', href: ROUTES.OWNER_RESERVATIONS, icon: Calendar },
   { label: 'Voyageurs', href: ROUTES.OWNER_TRAVELERS, icon: Users },
   { label: 'Abonnement', href: ROUTES.OWNER_SUBSCRIPTION, icon: CreditCard },
   { label: 'Réglages', href: ROUTES.OWNER_SETTINGS, icon: Settings },

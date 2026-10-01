@@ -1,56 +1,304 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronRight, Clock3, ImageIcon, KeyRound, MapPin, QrCode, Send, Sparkles, Star, Wifi } from 'lucide-react';
+import Image from 'next/image';
+import {
+  ArrowRight,
+  BookOpen,
+  Check,
+  Clock3,
+  KeyRound,
+  Link2,
+  MapPin,
+  MessageCircle,
+  PencilLine,
+  QrCode,
+  Send,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Wifi,
+} from 'lucide-react';
 
 const steps = [
-  { number: '01', label: 'Personnalisez', title: 'Votre accueil, dans les moindres détails.', description: 'Regroupez les informations essentielles dans un guide qui ressemble vraiment à votre logement.', note: 'Modifiez une information, vos voyageurs la voient instantanément.' },
-  { number: '02', label: 'Partagez', title: 'Un accès élégant, sans application.', description: 'Un lien privé et un QR code suffisent pour accompagner vos voyageurs avant, pendant et après leur arrivée.', note: 'Accessible sur tous les téléphones, sans téléchargement.' },
-  { number: '03', label: 'Échangez', title: 'Restez proche, sans être sollicité sans cesse.', description: 'Les voyageurs ont les réponses utiles. S’ils ont besoin de vous, la messagerie privée garde tout au même endroit.', note: 'Une conversation privée, simple pour vous comme pour eux.' },
+  {
+    number: '01',
+    label: 'Créez votre guide',
+    description: 'Les informations utiles, réunies dans un livret à votre image.',
+    icon: PencilLine,
+    stageLabel: 'Votre logement, à votre image',
+    stageNote: 'Arrivée, Wi-Fi, bonnes adresses : tout est prêt.',
+  },
+  {
+    number: '02',
+    label: 'Partagez en un geste',
+    description: 'Un lien privé ou un QR code, sans application à installer.',
+    icon: Link2,
+    stageLabel: 'Un lien. Et c’est partagé.',
+    stageNote: 'Envoyez votre guide avant l’arrivée ou affichez le QR code.',
+  },
+  {
+    number: '03',
+    label: 'Échangez simplement',
+    description: 'Gardez les messages du séjour au même endroit.',
+    icon: MessageCircle,
+    stageLabel: 'Toujours là, sans être dérangé',
+    stageNote: 'Les réponses courantes sont déjà dans le livret.',
+  },
 ];
 
-function EditorPreview() {
-  const entries = [[KeyRound, 'Arrivée & accès', '15:00 — arrivée autonome'], [Wifi, 'Wi-Fi', 'Réseau et mot de passe'], [MapPin, 'Mes bonnes adresses', '3 recommandations ajoutées']] as const;
-  return <div className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]">
-    <div className="rounded-[1.75rem] border border-[#dfe5e0] bg-[#f8f7f4] p-4 sm:p-5"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-[#89928c]">Votre guide</p><p className="mt-1 text-sm font-semibold text-[#1e2b27]">Appartement Lons-le-Saunier</p></div><span className="rounded-full bg-[#e4f1ea] px-2.5 py-1 text-[10px] font-bold text-[#337865]">Enregistré</span></div><div className="mt-5 space-y-2">{entries.map(([Icon, title, detail], index) => <div key={title} className="flex items-center gap-3 rounded-2xl bg-white px-3.5 py-3 shadow-sm"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#fce7de] text-[#dd6948]"><Icon size={15} /></span><span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-[#26332e]">{title}</span><span className="block truncate text-[11px] text-[#7e8882]">{detail}</span></span><span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#e6f2ed] text-[#36806b]"><Check size={12} /></span>{index === 0 ? <span className="h-1.5 w-1.5 rounded-full bg-[#e56f4d]" /> : null}</div>)}</div><button type="button" className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#ced8d1] py-2.5 text-xs font-semibold text-[#557066]"><ImageIcon size={14} />Ajouter une photo du logement</button></div>
-    <div className="relative overflow-hidden rounded-[1.9rem] bg-[#19344a] p-5 text-white shadow-[0_18px_36px_rgba(25,52,74,.22)]"><span className="absolute -right-14 -top-14 h-44 w-44 rounded-full border border-white/10" /><span className="absolute -bottom-16 -left-12 h-36 w-36 rounded-full border border-[#f5a184]/30" /><p className="relative text-[10px] font-bold uppercase tracking-[.18em] text-white/55">Aperçu voyageur</p><p className="relative mt-9 max-w-[180px] font-serif text-[29px] leading-[.95]">Bienvenue chez vous.</p><p className="relative mt-3 text-xs leading-5 text-white/65">Tout ce dont vos voyageurs ont besoin, au bon moment.</p><div className="relative mt-7 grid grid-cols-2 gap-2">{['Mon arrivée', 'Le Wi-Fi', 'À proximité', 'Mon départ'].map((label, index) => <span key={label} className={'rounded-xl p-2.5 text-[10px] font-semibold ' + (index === 0 ? 'bg-[#e56f4d] text-white' : 'bg-white/10 text-white/82')}>{label}</span>)}</div><div className="relative mt-5 flex items-center gap-2 text-[10px] font-medium text-[#9ed6c0]"><span className="h-2 w-2 rounded-full bg-[#77c6a5]" />Lien privé et sécurisé</div></div>
-  </div>;
+function GuideScreen() {
+  const sections = [
+    { icon: KeyRound, label: 'Arrivée & accès', detail: 'À partir de 15 h' },
+    { icon: Wifi, label: 'Le Wi-Fi', detail: 'Réseau et mot de passe' },
+    { icon: MapPin, label: 'Bonnes adresses', detail: 'Nos favoris du quartier' },
+  ];
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="rounded-2xl bg-[#e9eee8] px-3 py-3 md:px-4 md:py-4">
+        <p className="text-[9px] font-bold uppercase tracking-[.18em] text-[#78847b]">Bienvenue à</p>
+        <p className="mt-1 font-serif text-[22px] leading-[1.05] tracking-[-.03em] text-[#202c27] md:text-[25px]">Casa Levante</p>
+        <p className="mt-1.5 text-[9px] text-[#68756d] md:mt-2 md:text-[10px]">Votre guide pour un séjour serein.</p>
+      </div>
+      <div className="mt-2 flex min-h-0 flex-1 flex-col justify-center gap-1.5 md:mt-4 md:gap-2">
+        {sections.map(({ icon: Icon, label, detail }) => (
+          <div key={label} className="flex items-center gap-2.5 rounded-xl border border-[#eeeae4] bg-white px-2.5 py-2 md:gap-3 md:px-3 md:py-3">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-[#faeee8] text-[#d96c4a] md:h-8 md:w-8"><Icon size={14} /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[9px] font-semibold text-[#26332d] md:text-[10px]">{label}</span>
+              <span className="mt-0.5 block truncate text-[8px] text-[#89928b] md:text-[9px]">{detail}</span>
+            </span>
+            <ArrowRight size={12} className="text-[#9da69f] md:h-[13px] md:w-[13px]" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
-function SharePreview() {
-  return <div className="grid items-center gap-5 lg:grid-cols-[1.12fr_.88fr]"><div className="rounded-[1.75rem] border border-[#dfe5e0] bg-[#f8f7f4] p-4 sm:p-5"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#fce7de] text-[#dd6948]"><Send size={18} /></span><div><p className="text-sm font-semibold text-[#25332d]">Prêt à envoyer</p><p className="text-xs text-[#7d8781]">Votre accès est activé</p></div></div><div className="mt-5 rounded-2xl border border-[#e2e2dc] bg-white p-3"><p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#89928c]">Lien privé du logement</p><div className="mt-2 flex items-center gap-2"><span className="min-w-0 flex-1 truncate rounded-xl bg-[#f4f3ef] px-3 py-2.5 text-xs text-[#4b5c54]">monlivret.fr/guide/lons-le-saunier</span><span className="rounded-xl bg-[#19344a] px-3 py-2.5 text-[10px] font-bold text-white">Copier</span></div></div><div className="mt-3 flex items-center gap-3 rounded-2xl bg-[#e9f5ef] px-4 py-3 text-xs text-[#36735f]"><Check size={15} /><span>Votre livret est disponible immédiatement.</span></div></div><div className="rounded-[1.9rem] bg-[#19344a] p-5 text-white"><div className="flex items-start gap-4"><span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-white p-3 text-[#19344a]"><QrCode size={50} /></span><div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-[#f2a183]">Un seul geste</p><p className="mt-2 font-serif text-2xl leading-tight">Scannez. Ouvrez. Profitez.</p></div></div><div className="mt-5 border-t border-white/10 pt-4 text-xs leading-5 text-white/65">À l’arrivée, affiché dans le logement ou envoyé avant le séjour.</div></div></div>;
+function ShareScreen() {
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-2 md:gap-0">
+      <div className="shrink-0 rounded-xl bg-[#19344a] px-3 py-3 text-white md:rounded-2xl md:px-4 md:py-4">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-[#f2a183] md:h-9 md:w-9 md:rounded-xl"><Link2 size={15} className="md:h-[17px] md:w-[17px]" /></span>
+        <p className="mt-2.5 font-serif text-[20px] leading-[1.05] md:mt-4 md:text-[24px] md:leading-tight">Votre guide est prêt.</p>
+        <p className="mt-1 text-[9px] leading-[1.45] text-white/65 md:text-[10px] md:leading-4">Partagez-le avant l’arrivée de vos voyageurs.</p>
+      </div>
+      <div className="shrink-0 rounded-lg border border-[#eeeae4] bg-white p-2 md:mt-3 md:rounded-xl md:p-3">
+        <p className="text-[8px] font-bold uppercase tracking-[.1em] text-[#89928b] md:text-[9px] md:tracking-[.13em]">Lien du logement</p>
+        <div className="mt-1 flex items-center gap-1.5 rounded-lg bg-[#f7f5f0] px-2 py-1.5 md:mt-2 md:gap-2 md:px-2.5 md:py-2">
+          <span className="min-w-0 flex-1 truncate text-[8px] text-[#536159] md:text-[9px]">monlivret.fr/maison/casa-levante</span>
+          <span className="shrink-0 rounded-md bg-[#e56f4d] px-1.5 py-1 text-[7px] font-bold text-white md:px-2 md:text-[8px]">Copier</span>
+        </div>
+      </div>
+      <div className="mt-auto flex shrink-0 items-center gap-2 rounded-lg bg-[#edf5ef] p-2 md:gap-3 md:rounded-xl md:p-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#19344a] md:h-12 md:w-12"><QrCode size={27} className="md:h-[34px] md:w-[34px]" strokeWidth={1.5} /></span>
+        <span className="min-w-0"><span className="block text-[9px] font-semibold leading-tight text-[#294b3d] md:text-[10px]">Ou scannez le QR code</span><span className="mt-0.5 block text-[8px] leading-[1.35] text-[#718078] md:mt-1 md:text-[9px] md:leading-4">À afficher dans le logement.</span></span>
+      </div>
+    </div>
+  );
 }
 
-function ConversationPreview() {
-  return <div className="grid gap-4 lg:grid-cols-[.74fr_1.26fr]"><div className="rounded-[1.75rem] border border-[#dfe5e0] bg-[#f8f7f4] p-4"><p className="text-[10px] font-bold uppercase tracking-[.16em] text-[#89928c]">Boîte de réception</p><div className="mt-4 rounded-2xl bg-[#19344a] p-3.5 text-white"><p className="text-xs font-semibold">Camille Martin</p><p className="mt-1 text-[11px] text-white/60">Merci pour les bonnes adresses !</p><p className="mt-3 text-[10px] text-[#9ed6c0]">Maintenant</p></div><div className="mt-2 rounded-2xl bg-white p-3.5"><p className="text-xs font-semibold text-[#35433d]">Julien Bernard</p><p className="mt-1 text-[11px] text-[#7d8781]">Comment accéder au parking ?</p></div></div><div className="rounded-[1.75rem] border border-[#dfe5e0] bg-white p-4 sm:p-5"><div className="flex items-center justify-between border-b border-[#eeeae5] pb-4"><div><p className="text-sm font-semibold text-[#26342f]">Camille Martin</p><p className="mt-0.5 text-[11px] text-[#7d8781]">Votre voyageuse</p></div><span className="rounded-full bg-[#e5f2ec] px-2.5 py-1 text-[10px] font-bold text-[#387861]">En ligne</span></div><div className="space-y-3 py-5"><div className="max-w-[78%] rounded-2xl rounded-tl-sm bg-[#f4f1ed] p-3 text-xs leading-5 text-[#516159]">Merci pour les bonnes adresses ! Le guide est vraiment pratique.</div><div className="ml-auto max-w-[78%] rounded-2xl rounded-tr-sm bg-[#19344a] p-3 text-xs leading-5 text-white">Avec plaisir Camille, je vous souhaite un excellent séjour.</div></div><div className="flex items-center gap-2 rounded-2xl border border-[#e1ddd7] px-3 py-2"><span className="flex-1 text-xs text-[#9aa19c]">Écrivez votre message…</span><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e56f4d] text-white"><Send size={13} /></span></div></div></div>;
+function MessagesScreen() {
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 items-center justify-between border-b border-[#eeeae4] pb-2 md:pb-3">
+        <div><p className="text-[8px] font-bold uppercase tracking-[.13em] text-[#89928b] md:text-[9px] md:tracking-[.15em]">Messages du séjour</p><p className="mt-1 text-[11px] font-semibold text-[#25332d] md:text-xs">Camille Martin</p></div>
+        <span className="flex items-center gap-1 rounded-full bg-[#eaf4ee] px-1.5 py-1 text-[7px] font-semibold text-[#38775f] md:gap-1.5 md:px-2 md:text-[8px]"><span className="h-1.5 w-1.5 rounded-full bg-[#55aa82]" />En ligne</span>
+      </div>
+      <div className="my-2 flex min-h-0 flex-1 flex-col justify-center gap-2 md:my-4 md:gap-3">
+        <div className="max-w-[88%] rounded-2xl rounded-tl-sm bg-[#f3f1ec] px-2.5 py-2 text-[9px] leading-[1.45] text-[#526057] md:px-3 md:py-2.5 md:text-[10px] md:leading-4">Merci, nous avons bien trouvé le logement !</div>
+        <div className="ml-auto max-w-[88%] rounded-2xl rounded-tr-sm bg-[#19344a] px-2.5 py-2 text-[9px] leading-[1.45] text-white md:px-3 md:py-2.5 md:text-[10px] md:leading-4">Parfait, bon séjour à vous deux !</div>
+        <div className="max-w-[88%] rounded-2xl rounded-tl-sm bg-[#f3f1ec] px-2.5 py-2 text-[9px] leading-[1.45] text-[#526057] md:px-3 md:py-2.5 md:text-[10px] md:leading-4">Où peut-on trouver les bonnes adresses ?</div>
+      </div>
+      <div className="mt-auto flex shrink-0 items-center gap-2 rounded-xl border border-[#e9e5dd] px-2.5 py-2 text-[8px] text-[#9aa19c] md:px-3 md:py-2.5 md:text-[9px]"><span className="flex-1">Écrire un message…</span><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#e56f4d] text-white md:h-7 md:w-7"><Send size={11} /></span></div>
+    </div>
+  );
 }
 
-const previews = [EditorPreview, SharePreview, ConversationPreview];
-
-function ExperienceFlow() {
-  return <div className="relative mt-10 hidden items-center justify-between gap-4 lg:flex">
-    <div className="relative z-10 w-[220px] rounded-2xl border border-[#e7ddd5] bg-white px-4 py-3 shadow-sm"><p className="text-[10px] font-bold uppercase tracking-[.14em] text-[#d96c4a]">Vous ajoutez</p><p className="mt-1 text-sm font-semibold text-[#27342e]">Vos infos, photos et adresses</p></div>
-    <div className="relative h-16 flex-1"><svg viewBox="0 0 300 64" fill="none" className="h-full w-full overflow-visible" aria-hidden="true"><path d="M4 39C70 39 63 12 135 12H269" stroke="#db7557" strokeWidth="1.5" strokeDasharray="4 5" /><path d="M266 6L276 12L266 18" stroke="#db7557" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg><span className="absolute left-1/2 top-7 -translate-x-1/2 rounded-full bg-[#f7f5f0] px-3 py-1 text-[10px] font-semibold text-[#9a6b5b]">vous publiez</span></div>
-    <div className="relative z-10 w-[220px] rounded-2xl border border-[#cfe1d8] bg-[#eaf5ef] px-4 py-3 shadow-sm"><p className="text-[10px] font-bold uppercase tracking-[.14em] text-[#367a64]">Vos voyageurs reçoivent</p><p className="mt-1 text-sm font-semibold text-[#27342e]">Un guide clair, prêt à ouvrir</p></div>
-    <div className="relative h-16 flex-1"><svg viewBox="0 0 300 64" fill="none" className="h-full w-full overflow-visible" aria-hidden="true"><path d="M4 12H105C180 12 185 42 268 42" stroke="#3f8a73" strokeWidth="1.5" strokeDasharray="4 5" /><path d="M266 36L276 42L266 48" stroke="#3f8a73" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg><span className="absolute left-1/2 top-7 -translate-x-1/2 rounded-full bg-[#f7f5f0] px-3 py-1 text-[10px] font-semibold text-[#4d7969]">vous échangez</span></div>
-    <div className="relative z-10 w-[190px] rounded-2xl bg-[#19344a] px-4 py-3 text-white shadow-lg"><p className="text-[10px] font-bold uppercase tracking-[.14em] text-[#f2a183]">Résultat</p><p className="mt-1 text-sm font-semibold">Un séjour serein</p></div>
-  </div>;
+function GuestPreview({ activeIndex }: { activeIndex: number }) {
+  return (
+    <div key={activeIndex} className="min-h-0 flex-1 animate-[fadeIn_450ms_ease-out_both]">
+      {activeIndex === 0 ? <GuideScreen /> : null}
+      {activeIndex === 1 ? <ShareScreen /> : null}
+      {activeIndex === 2 ? <MessagesScreen /> : null}
+    </div>
+  );
 }
 
 export default function SaasScrollStory() {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isStoryInView, setIsStoryInView] = useState(false);
   const sectionRef = useRef<HTMLElement | null>(null);
+  const imageRef = useRef<HTMLDivElement | null>(null);
+  const phoneRef = useRef<HTMLDivElement | null>(null);
+  const noteRef = useRef<HTMLDivElement | null>(null);
+  const active = steps[activeIndex];
+  const StageIcon = active.icon;
 
   useEffect(() => {
     const section = sectionRef.current;
     if (!section) return;
-    const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) setActiveIndex(0); }, { threshold: 0.25 });
+
+    const observer = new IntersectionObserver(([entry]) => {
+      setIsStoryInView(entry.isIntersecting);
+    }, { threshold: 0.25 });
+
     observer.observe(section);
     return () => observer.disconnect();
   }, []);
 
-  const Preview = previews[activeIndex];
-  const active = steps[activeIndex];
+  useEffect(() => {
+    if (!isStoryInView || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-  return <section ref={sectionRef} className="overflow-hidden bg-[#f7f5f0] px-5 py-20 sm:px-8 sm:py-24 lg:py-28"><div className="mx-auto max-w-[1200px]"><div className="max-w-3xl"><p className="section-kicker">Votre accueil, en une expérience</p><h2 className="type-section mt-4 font-serif leading-[.98] tracking-[-.045em] text-[#1f2925]">L’application qui rend votre logement <span className="italic text-[#d96c4a]">inoubliable.</span></h2><p className="mt-5 max-w-2xl text-base leading-7 text-[#68736d] sm:text-lg">Mon Livret transforme vos informations en un parcours clair pour vos voyageurs, tout en vous laissant garder la main — sans alourdir votre quotidien.</p></div><ExperienceFlow /><div className="relative mt-10 grid overflow-hidden rounded-[2.25rem] border border-[#d9ddd5] bg-white shadow-[0_26px_70px_rgba(35,49,42,.10)] lg:grid-cols-[.77fr_1.23fr]"><aside className="relative overflow-hidden bg-[#19344a] p-6 text-white sm:p-8 lg:p-10"><span className="absolute -left-14 -top-14 h-44 w-44 rounded-full border border-white/10" /><span className="absolute -bottom-24 -right-20 h-64 w-64 rounded-full border border-[#e98866]/35" /><div className="relative"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-[#f3a080]"><Sparkles size={18} /></span><p className="mt-8 text-[11px] font-bold uppercase tracking-[.18em] text-[#f3a080]">Le parcours Mon Livret</p><h3 className="mt-3 max-w-sm font-serif text-3xl leading-tight tracking-[-.035em] sm:text-[38px]">Trois gestes. Une expérience qui compte.</h3><p className="mt-4 max-w-sm text-sm leading-6 text-white/65">De la création du guide à la conversation avec vos voyageurs, chaque étape est pensée pour vous faire gagner du temps.</p><div className="mt-9 space-y-2">{steps.map((step, index) => <button key={step.number} type="button" onClick={() => setActiveIndex(index)} className={'group flex w-full items-center gap-3 rounded-2xl p-3 text-left transition ' + (activeIndex === index ? 'bg-white text-[#19344a] shadow-lg' : 'text-white/65 hover:bg-white/10 hover:text-white')}><span className={'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[11px] font-bold ' + (activeIndex === index ? 'bg-[#fce6dd] text-[#d9603e]' : 'bg-white/10 text-white/65')}>{step.number}</span><span className="min-w-0 flex-1"><span className="block text-xs font-bold">{step.label}</span><span className={'mt-0.5 block truncate text-[10px] ' + (activeIndex === index ? 'text-[#6d7d75]' : 'text-white/42')}>{step.title}</span></span><ChevronRight size={16} className={'shrink-0 transition group-hover:translate-x-0.5 ' + (activeIndex === index ? 'text-[#d9603e]' : '')} /></button>)}</div><div className="mt-9 flex items-center gap-3 border-t border-white/10 pt-6 text-xs text-white/58"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e98060] text-white"><Star size={14} fill="currentColor" /></span><span>Conçu pour un accueil noté 5 étoiles.</span></div></div></aside><div className="bg-[radial-gradient(circle_at_75%_0%,#fdf0e9_0,transparent_30%),linear-gradient(145deg,#fafcf9,#f0f4ef)] p-5 sm:p-8 lg:p-10"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-[.16em] text-[#d96c4a]">{active.number} — {active.label}</p><h3 className="mt-2 max-w-lg font-serif text-3xl leading-[1.02] tracking-[-.04em] text-[#1f2925] sm:text-[40px]">{active.title}</h3></div><span className="flex items-center gap-1.5 rounded-full border border-[#dce6df] bg-white/80 px-3 py-2 text-[10px] font-bold text-[#397260]"><Clock3 size={13} />Toujours à jour</span></div><p className="mt-4 max-w-xl text-sm leading-6 text-[#66736c] sm:text-base">{active.description}</p><div className="mt-7 transition-all duration-500"><Preview /></div><div className="mt-6 flex items-start gap-3 rounded-2xl border border-[#dce8e1] bg-white/75 p-3.5 text-xs leading-5 text-[#49665b]"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#e5f2ec] text-[#34755f]"><Check size={12} /></span>{active.note}</div></div></div></div></section>;
+    const timeout = window.setTimeout(() => {
+      setActiveIndex((currentIndex) => (currentIndex + 1) % steps.length);
+    }, 3000);
+
+    return () => window.clearTimeout(timeout);
+  }, [isStoryInView, activeIndex]);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    let frame = 0;
+    const updateParallax = () => {
+      frame = 0;
+      const bounds = section.getBoundingClientRect();
+      const travel = window.innerHeight + bounds.height;
+      const progress = Math.max(0, Math.min(1, (window.innerHeight - bounds.top) / travel));
+      const shift = (progress - 0.5) * 70;
+      const phoneShift = -shift * 0.38;
+      const phoneX = window.matchMedia('(max-width: 767px)').matches ? '-50%' : '0';
+
+      if (imageRef.current) imageRef.current.style.transform = `translate3d(0, ${shift.toFixed(1)}px, 0) scale(1.12)`;
+      if (phoneRef.current) phoneRef.current.style.transform = `translate3d(${phoneX}, ${phoneShift.toFixed(1)}px, 0)`;
+      if (noteRef.current) noteRef.current.style.transform = `translate3d(0, ${(shift * 0.72).toFixed(1)}px, 0)`;
+    };
+    const scheduleUpdate = () => {
+      if (!frame) frame = window.requestAnimationFrame(updateParallax);
+    };
+
+    updateParallax();
+    window.addEventListener('scroll', scheduleUpdate, { passive: true });
+    window.addEventListener('resize', scheduleUpdate);
+
+    return () => {
+      window.removeEventListener('scroll', scheduleUpdate);
+      window.removeEventListener('resize', scheduleUpdate);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  return (
+    <section ref={sectionRef} className="relative isolate overflow-hidden bg-[#f7f5f0] px-5 py-20 sm:px-8 sm:py-24 lg:py-28">
+      <div aria-hidden="true" className="pointer-events-none absolute -right-32 top-16 h-80 w-80 rounded-full bg-[#e7d8ca]/30 blur-3xl" />
+      <div className="relative mx-auto max-w-[1200px]">
+        <div className="grid items-end gap-6 md:grid-cols-[1.12fr_.88fr] md:gap-12">
+          <div>
+            <p className="section-kicker">Le parcours Mon Livret</p>
+            <h2 className="type-section mt-4 max-w-3xl text-balance font-serif leading-[.98] tracking-[-.045em] text-[#1f2925]">Un accueil plus simple, du premier clic au dernier jour.</h2>
+          </div>
+          <p className="max-w-md pb-1 text-base leading-7 text-[#68736d] sm:text-lg">Préparez un guide à votre image, partagez-le en un instant et gardez les échanges au même endroit.</p>
+        </div>
+
+        <div className="mt-10 grid items-stretch gap-4 md:grid-cols-[.76fr_1.24fr] lg:mt-12">
+          <aside className="flex flex-col rounded-[1.5rem] border border-[#e7e1d8] bg-[#fffdf9] p-4 shadow-[0_18px_48px_rgba(35,49,42,.06)] sm:rounded-[2rem] sm:p-5 md:p-7 lg:p-8">
+            <div className="flex items-center justify-between">
+              <p className="text-[9px] font-bold uppercase tracking-[.17em] text-[#88918a] md:text-[10px]">En trois étapes</p>
+              <span className="rounded-full bg-[#f5eee8] px-2.5 py-1 text-[10px] font-bold text-[#b75f43]">{active.number} / 03</span>
+            </div>
+
+            <nav aria-label="Les étapes de votre livret" className="mt-3 grid grid-cols-3 gap-2 md:mt-5 md:block md:space-y-2">
+              {steps.map((step, index) => {
+                const Icon = step.icon;
+                const isActive = activeIndex === index;
+
+                return (
+                  <button
+                    key={step.number}
+                    type="button"
+                    aria-pressed={isActive}
+                    aria-controls="mon-livret-preview"
+                    onClick={() => setActiveIndex(index)}
+                    className={'group relative flex min-w-0 w-full flex-col items-start gap-2 rounded-xl border p-2.5 text-left transition duration-300 sm:p-3 md:flex-row md:items-start md:gap-3.5 md:rounded-2xl md:p-4 ' + (isActive ? 'border-[#edc8b8] bg-[#fbf2ed] shadow-[0_8px_20px_rgba(185,105,77,.08)]' : 'border-transparent hover:border-[#ece7de] hover:bg-[#f8f6f1]')}
+                  >
+                    <span className={'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition md:mt-0.5 md:h-9 md:w-9 md:rounded-xl ' + (isActive ? 'bg-[#df7654] text-white' : 'bg-[#f1eee7] text-[#718078] group-hover:text-[#d96c4a]')}><Icon size={15} className="md:h-4 md:w-4" /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center justify-between gap-2">
+                        <span className={'text-[10px] font-semibold leading-tight sm:text-[11px] md:text-sm ' + (isActive ? 'text-[#26332d]' : 'text-[#67736c]')}>{step.label}</span>
+                        {isActive ? <ArrowRight size={14} className="absolute right-2 top-2 shrink-0 text-[#d96c4a] md:static md:size-[15px]" /> : null}
+                      </span>
+                      <span className="mt-1 hidden text-xs leading-[1.55] text-[#818b84] md:block">{step.description}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="mt-3 flex items-center gap-2 border-t border-[#eee9e1] pt-3 text-[10px] leading-4 text-[#65736a] md:mt-auto md:gap-3 md:pt-5 md:text-xs md:leading-5">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#eaf3ed] text-[#448267] md:h-9 md:w-9"><ShieldCheck size={15} className="md:h-[17px] md:w-[17px]" /></span>
+              <span>Aucun compte ni téléchargement pour vos voyageurs.</span>
+            </div>
+
+            <div className="mt-3 flex items-center gap-2 md:mt-4" aria-label="L’étape suivante commence dans 3 secondes">
+              <div aria-hidden="true" className="h-1 flex-1 overflow-hidden rounded-full bg-[#eee9e1]">
+                <span key={`${activeIndex}-${isStoryInView}`} className={'block h-full w-full origin-left rounded-full bg-[#df7654] [transform:scaleX(0)] ' + (isStoryInView ? 'animate-[storyProgress_3s_linear_forwards]' : '')} />
+              </div>
+              <span className="text-[9px] font-medium tabular-nums text-[#89928b]">3 s</span>
+            </div>
+          </aside>
+
+          <div id="mon-livret-preview" role="region" aria-label={`Aperçu : ${active.label}`} className="relative min-h-[470px] overflow-hidden rounded-[1.5rem] bg-[#1a2e34] shadow-[0_24px_60px_rgba(25,41,37,.18)] sm:rounded-[2rem] md:min-h-[570px]">
+            <div ref={imageRef} aria-hidden="true" className="absolute -inset-8">
+              <Image src="/images/interior.jpg" alt="" fill sizes="(max-width: 768px) 100vw, 65vw" className="object-cover" />
+            </div>
+            <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-[#122329]/65 via-[#122329]/24 to-[#122329]/5" />
+            <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-[#102126]/55 via-transparent to-[#102126]/15" />
+
+            <div className="absolute left-5 top-5 z-10 hidden items-center gap-2 rounded-full border border-white/20 bg-[#11262d]/40 px-3 py-2 text-[9px] font-semibold uppercase tracking-[.12em] text-white/90 backdrop-blur-md lg:left-7 lg:top-7 lg:flex">
+              <Sparkles size={13} className="text-[#f2a183]" /> Un guide qui vous ressemble
+            </div>
+
+            <div ref={noteRef} className="absolute left-5 top-[28%] z-20 hidden w-[210px] rounded-2xl border border-white/55 bg-[#fffdf9]/95 p-4 shadow-[0_18px_44px_rgba(18,32,31,.2)] backdrop-blur-md lg:left-9 lg:block lg:w-[230px]">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#faeee8] text-[#d96c4a]"><StageIcon size={17} /></span>
+              <p className="mt-3 text-[9px] font-bold uppercase tracking-[.14em] text-[#a06954]">{active.number} — {active.label}</p>
+              <p className="mt-1.5 font-serif text-lg leading-tight text-[#1f2925]">{active.stageLabel}</p>
+              <p className="mt-1.5 text-[11px] leading-[1.5] text-[#6e7871]">{active.stageNote}</p>
+            </div>
+
+            <div ref={phoneRef} className="absolute left-1/2 right-auto top-3 z-30 h-[440px] w-[210px] -translate-x-1/2 md:left-auto md:right-8 md:top-5 md:h-[520px] md:w-[252px] md:translate-x-0 lg:right-[8%] lg:w-[264px]">
+              <div className="relative h-full rounded-[2.6rem] border-[6px] border-[#1a1d1b] bg-[#1a1d1b] p-1.5 pb-4 shadow-[0_28px_70px_rgba(8,18,18,.42)]">
+                <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[2rem] bg-[#fffdf9] px-3 pb-3 pt-2.5 md:px-4 md:pb-5 md:pt-3">
+                  <div className="mb-2 flex shrink-0 items-center justify-between px-1 text-[#536159] md:mb-4">
+                    <span className="text-[9px] font-bold">9:41</span>
+                    <span className="flex items-center gap-1"><span className="h-1.5 w-2 rounded-sm bg-[#536159]" /><span className="h-2 w-3 rounded-[2px] border border-[#536159] p-[1px]"><span className="block h-full w-2/3 rounded-[1px] bg-[#536159]" /></span></span>
+                  </div>
+                  <div className="mb-2 flex shrink-0 items-center gap-2 border-b border-[#eeeae4] pb-2 md:mb-3 md:pb-3">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#19344a] text-[#f2a183]"><BookOpen size={14} /></span>
+                    <span className="text-[9px] font-bold uppercase tracking-[.14em] text-[#536159]">Mon Livret</span>
+                    <span className="ml-auto flex items-center gap-1 text-[8px] font-medium text-[#78917f]"><span className="h-1.5 w-1.5 rounded-full bg-[#72bd99]" />En ligne</span>
+                  </div>
+                  <GuestPreview activeIndex={activeIndex} />
+                  <div className="mt-auto flex shrink-0 items-center justify-center gap-1.5 border-t border-[#eeeae4] pt-2 text-[8px] text-[#849087] md:pt-3"><Clock3 size={10} /> Toujours à jour</div>
+                </div>
+                <div aria-hidden="true" className="absolute bottom-[5px] left-1/2 h-1 w-14 -translate-x-1/2 rounded-full bg-white/75" />
+              </div>
+            </div>
+
+            <div className="absolute bottom-6 left-5 z-10 hidden items-center gap-2.5 rounded-full border border-white/20 bg-[#11262d]/45 px-3 py-2 text-[10px] font-medium text-white/90 backdrop-blur-md lg:bottom-7 lg:left-7 lg:flex">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#e98060] text-white"><Star size={13} fill="currentColor" /></span>
+              <span>Un séjour qui commence bien</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center justify-center gap-2 text-[10px] font-medium text-[#89928b]">
+          <Check size={13} className="text-[#4b8a6c]" /> Un guide clair, accessible sur tous les téléphones.
+        </div>
+      </div>
+    </section>
+  );
 }

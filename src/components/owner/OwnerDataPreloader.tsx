@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
 
+import { ROUTES } from '@/config/routes';
 import { firebaseAuth, firestore } from '@/lib/firebase/client';
 
 /**
@@ -12,8 +14,11 @@ import { firebaseAuth, firestore } from '@/lib/firebase/client';
  * first Firestore read is now normally served from this shared live cache.
  */
 export default function OwnerDataPreloader() {
+  const router = useRouter();
+
   useEffect(() => {
     let stops: Array<() => void> = [];
+    let revokingAccess = false;
 
     const clearListeners = () => {
       stops.forEach((stop) => stop());
@@ -22,9 +27,16 @@ export default function OwnerDataPreloader() {
 
     const stopAuth = onAuthStateChanged(firebaseAuth, (user) => {
       clearListeners();
+      revokingAccess = false;
       if (!user) return;
 
-      stops.push(onSnapshot(doc(firestore, 'profiles', user.uid), () => undefined, () => undefined));
+      stops.push(onSnapshot(doc(firestore, 'profiles', user.uid), (profile) => {
+        const status = profile.data()?.accountStatus;
+        if (revokingAccess || (status !== 'suspended' && status !== 'deleting')) return;
+        revokingAccess = true;
+        clearListeners();
+        void signOut(firebaseAuth).finally(() => router.replace(ROUTES.LOGIN));
+      }, () => undefined));
 
       [
         'properties',
@@ -46,7 +58,7 @@ export default function OwnerDataPreloader() {
       clearListeners();
       stopAuth();
     };
-  }, []);
+  }, [router]);
 
   return null;
 }

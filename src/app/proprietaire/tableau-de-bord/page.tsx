@@ -161,6 +161,7 @@ export default function OwnerDashboard() {
   }));
 
   const bookletProperty = properties.find((property) => property.status === 'draft') ?? properties[0];
+  const shareProperty = publishedProperties[0] ?? properties.find((property) => property.status === 'draft') ?? properties[0];
   const quickActions = [
     {
       icon: Plus,
@@ -174,12 +175,14 @@ export default function OwnerDashboard() {
     },
     {
       icon: QrCode,
-      label: publishedProperties[0] ? 'Générer un QR code' : 'Publier un livret pour générer un QR code',
-      href: publishedProperties[0]
-        ? `${ROUTES.OWNER_PROPERTY_DETAIL(publishedProperties[0].id)}#qr-code-section`
-        : ROUTES.OWNER_PROPERTY_NEW,
+      label: publishedProperties[0]
+        ? 'Générer un QR code'
+        : shareProperty
+          ? 'Publier un livret pour générer un QR code'
+          : 'Créer un logement pour générer un QR code',
+      href: shareProperty ? ROUTES.OWNER_PROPERTY_SHARE(shareProperty.id) : ROUTES.OWNER_PROPERTY_NEW,
     },
-    { icon: Calendar, label: 'Voir les réservations', href: ROUTES.OWNER_RESERVATIONS },
+    { icon: Calendar, label: 'Gérer l’accès voyageur', href: ROUTES.OWNER_RESERVATIONS },
     ...(publishedProperties[0] ? [{ icon: Share2, label: 'Voir le livret voyageur', href: ROUTES.PUBLIC_BOOKLET(publishedProperties[0].publicToken) }] : []),
     { icon: Users, label: 'Gérer les voyageurs', href: ROUTES.OWNER_TRAVELERS }
   ];

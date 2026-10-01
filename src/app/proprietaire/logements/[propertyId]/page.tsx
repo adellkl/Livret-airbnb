@@ -19,6 +19,7 @@ import { firebaseAuth, firestore } from '@/lib/firebase/client';
 import { doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { toOwnerProperty } from '@/lib/property-mappers';
+import { ROUTES } from '@/config/routes';
 import { 
   Copy,
   Download,
@@ -339,7 +340,7 @@ export default function PropertyDetailPage() {
                     <Mail size={18} className="mr-3 text-muted-foreground" />
                     Envoyer par e-mail
                   </Button>
-                  <Button variant="ghost" className="w-full justify-start" onClick={() => document.getElementById('qr-code-section')?.scrollIntoView({ behavior: 'smooth' })}>
+                  <Button variant="ghost" className="w-full justify-start" onClick={() => router.push(ROUTES.OWNER_PROPERTY_SHARE(ownerProperty.id))} disabled={!ownerProperty.id}>
                     <QrCode size={18} className="mr-3 text-muted-foreground" />
                     Générer QR code
                   </Button>

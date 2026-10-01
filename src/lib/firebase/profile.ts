@@ -22,6 +22,7 @@ export async function createOwnerProfile({
     organizationName,
     activityType,
     role: 'owner',
+    accountStatus: 'active',
     subscriptionPlan: 'free',
     subscriptionStatus: 'active',
     acceptedTermsAt: serverTimestamp(),

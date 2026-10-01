@@ -53,6 +53,12 @@ export default function LoginPage() {
         return;
       }
 
+      if (['suspended', 'deleting'].includes(profile.data()?.accountStatus)) {
+        await signOut(firebaseAuth);
+        setError('Ce compte est suspendu. Contactez un administrateur.');
+        return;
+      }
+
       if (accountType === 'admin' && role !== 'admin') {
         await signOut(firebaseAuth);
         setError('Ce compte ne dispose pas des droits administrateur.');

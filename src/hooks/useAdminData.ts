@@ -13,6 +13,8 @@ export type AdminProfile = {
   organizationName?: string;
   subscriptionPlan?: string;
   subscriptionStatus?: string;
+  accountStatus?: string;
+  createdAt?: { toDate?: () => Date } | Date | string | number;
 };
 
 export type AdminProperty = {
