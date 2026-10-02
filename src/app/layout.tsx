@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import MobileHoverGuard from "@/components/layout/MobileHoverGuard";
+import AnalyticsConsent from '@/components/marketing/AnalyticsConsent';
 
 import { isIndexable, siteUrl } from '@/lib/seo';
 
@@ -25,6 +26,7 @@ export default function RootLayout({
     <html lang="fr" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
         <MobileHoverGuard />
+        <AnalyticsConsent />
         {children}
       </body>
     </html>

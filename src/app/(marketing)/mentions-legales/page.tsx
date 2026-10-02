@@ -62,10 +62,10 @@ export default function LegalPage() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-foreground mb-4">Cookies</h2>
             <p className="text-muted-foreground mb-4">
-              Ce site utilise des cookies pour améliorer votre expérience de navigation, analyser le trafic et personnaliser le contenu.
+              Google Analytics mesure la fréquentation des pages publiques uniquement après votre consentement. Vous pouvez accepter ou refuser cette mesure d’audience.
             </p>
             <p className="text-muted-foreground">
-              Vous pouvez configurer votre navigateur pour refuser les cookies. Cependant, certaines fonctionnalités du site pourraient ne pas fonctionner correctement.
+              Vous pouvez modifier votre choix à tout moment avec le bouton « Préférences cookies ».
             </p>
           </section>
 

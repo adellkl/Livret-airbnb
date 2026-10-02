@@ -30,7 +30,7 @@ export default function PrivacyPage() {
               <li><strong>Données d'inscription :</strong> nom, prénom, adresse e-mail, mot de passe</li>
               <li><strong>Données de profil :</strong> nom de l'établissement, type d'activité, informations de contact</li>
               <li><strong>Données de logement :</strong> adresse, photos, descriptions, équipements</li>
-              <li><strong>Données d'utilisation :</strong> statistiques de consultation, interactions avec le service</li>
+              <li><strong>Données d'utilisation :</strong> statistiques de consultation des pages publiques via Google Analytics, uniquement après votre consentement</li>
               <li><strong>Données de paiement :</strong> informations de carte bancaire (traitées par notre prestataire de paiement)</li>
             </ul>
           </section>
@@ -44,7 +44,7 @@ export default function PrivacyPage() {
               <li>Fournir et améliorer notre service</li>
               <li>Gérer votre compte et vos abonnements</li>
               <li>Envoyer des communications relatives au service</li>
-              <li>Analyser l'utilisation du service pour l'améliorer</li>
+              <li>Analyser la fréquentation des pages publiques après votre consentement</li>
               <li>Prévenir les fraudes et assurer la sécurité</li>
               <li>Respecter nos obligations légales</li>
             </ul>
@@ -57,7 +57,7 @@ export default function PrivacyPage() {
             </p>
             <ul className="list-disc pl-6 text-muted-foreground space-y-2">
               <li>Vos voyageurs (via les livrets d'accueil que vous créez)</li>
-              <li>Nos prestataires de services (hébergement, paiement, email)</li>
+              <li>Nos prestataires de services (hébergement, paiement, email et mesure d’audience Google Analytics)</li>
               <li>Les autorités compétentes (si requis par la loi)</li>
             </ul>
             <p className="text-muted-foreground">
