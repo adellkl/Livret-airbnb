@@ -1,5 +1,7 @@
 'use client';
 
+import { contactEmailLink } from '@/config/contact';
+
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -82,7 +84,7 @@ export default function OwnerSidebar() {
       </nav>
 
       <div className="p-4 space-y-4">
-        <a href="mailto:contact@monlivret.eu?subject=Besoin%20d%E2%80%99aide%20%E2%80%94%20Mon%20Livret" className="flex items-center space-x-3 px-4 py-3 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-hover hover:text-sidebar-foreground transition-colors">
+        <a href={contactEmailLink('Besoin d’aide — Mon Livret')} className="flex items-center space-x-3 px-4 py-3 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-hover hover:text-sidebar-foreground transition-colors">
           <HelpCircle size={20} />
           <span className="text-sm font-medium">Besoin d&apos;aide ?</span>
         </a>

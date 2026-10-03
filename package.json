@@ -2,6 +2,9 @@
   "name": "livret-airbnb",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,8 +13,10 @@
     "typecheck": "tsc --noEmit",
     "security:check": "node scripts/check-secrets.mjs",
     "security:history": "node scripts/check-secrets.mjs --history",
-    "check": "npm run security:check && npm run lint && npm run typecheck",
-    "setup:hooks": "git config core.hooksPath .githooks"
+    "check": "npm run security:check && npm run lint && npm run typecheck && npm run test:emails",
+    "setup:hooks": "git config core.hooksPath .githooks",
+    "test:emails": "node --conditions=react-server --import tsx --test tests/account-emails.test.ts",
+    "preview:emails": "node --import tsx scripts/preview-emails.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -19,14 +24,17 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "firebase": "^12.17.1",
+    "firebase-admin": "^14.5.0",
     "framer-motion": "^12.42.2",
     "lucide-react": "^1.25.0",
     "next": "^16.3.7",
+    "nodemailer": "^10.0.13",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.82.0",
     "recharts": "^3.10.0",
+    "server-only": "^0.0.1",
     "shadcn": "^4.14.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
@@ -36,11 +44,13 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "^16.3.7",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   },
   "overrides": {

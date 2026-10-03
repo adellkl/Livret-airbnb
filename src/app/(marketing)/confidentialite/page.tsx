@@ -1,3 +1,4 @@
+import { CONTACT_EMAIL } from '@/config/contact';
 import { pageMetadata } from '@/lib/seo';
 
 export const metadata = pageMetadata('/confidentialite');
@@ -92,7 +93,7 @@ export default function PrivacyPage() {
               <li>Droit de retirer votre consentement</li>
             </ul>
             <p className="text-muted-foreground">
-              Pour exercer ces droits, contactez-nous à l'adresse : contact@monlivret.eu
+              Pour exercer ces droits, contactez-nous à l'adresse : {CONTACT_EMAIL}
             </p>
           </section>
 
@@ -115,7 +116,7 @@ export default function PrivacyPage() {
               Pour toute question relative à cette politique de confidentialité, contactez-nous :
             </p>
             <p className="text-muted-foreground">
-              Email : contact@monlivret.eu
+              Email : {CONTACT_EMAIL}
             </p>
           </section>
         </div>

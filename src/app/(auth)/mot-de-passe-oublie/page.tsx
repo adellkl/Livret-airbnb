@@ -8,8 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Mail, Shield } from 'lucide-react';
-import { sendPasswordResetEmail } from 'firebase/auth';
-import { firebaseAuth } from '@/lib/firebase/client';
+import { sendAccountPasswordReset } from '@/lib/firebase/account-emails';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -22,9 +21,7 @@ export default function ForgotPasswordPage() {
     setIsSubmitting(true);
     setError('');
     try {
-      await sendPasswordResetEmail(firebaseAuth, email.trim().toLowerCase(), {
-        url: `${window.location.origin}${ROUTES.RESET_PASSWORD}`,
-      });
+      await sendAccountPasswordReset(email);
       setSubmitted(true);
     } catch {
       setError('Impossible d’envoyer le lien. Vérifiez l’adresse et réessayez.');
@@ -85,9 +82,9 @@ export default function ForgotPasswordPage() {
               <div className="w-16 h-16 bg-success-light rounded-full flex items-center justify-center mx-auto mb-4">
                 <Mail size={32} className="text-success" />
               </div>
-              <h3 className="text-xl font-semibold text-foreground mb-2">E-mail envoyé !</h3>
+              <h3 className="text-xl font-semibold text-foreground mb-2">Consultez votre boîte mail</h3>
               <p className="text-sm text-muted-foreground mb-6">
-                Nous avons envoyé un e-mail de réinitialisation à <span className="text-foreground font-medium">{email}</span>. Vérifiez votre boîte de réception.
+                Si un compte correspond à <span className="text-foreground font-medium">{email}</span>, vous recevrez un lien de réinitialisation. Vérifiez aussi vos courriers indésirables.
               </p>
               <Link href={ROUTES.LOGIN}>
                 <Button variant="outline" className="rounded-lg">

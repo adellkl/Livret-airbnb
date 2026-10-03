@@ -1,5 +1,7 @@
 'use client';
 
+import { contactEmailLink } from '@/config/contact';
+
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -101,7 +103,7 @@ export default function SubscriptionPage() {
             {usageLimit && <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-[#ef9a78] transition-all" style={{ width: `${usagePercent}%` }} /></div>}
           </div>
         </div>
-        {nextPlan && !isLoading && <div className="mt-6 flex flex-col gap-3 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-white/70">Prochaine étape : <strong className="text-white">{nextPlan.name}</strong> — {nextPlan.audience.toLocaleLowerCase('fr-FR')}.</p><Link href={nextPlan.id === 'business' ? 'mailto:contact@monlivret.eu?subject=Mon%20Livret%20Business' : ROUTES.PRICING} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#e7754d] px-4 py-2.5 text-sm font-semibold text-white">{nextPlan.id === 'business' ? 'Parler de Business' : 'Voir Pro'}<ArrowRight size={16} /></Link></div>}
+        {nextPlan && !isLoading && <div className="mt-6 flex flex-col gap-3 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-white/70">Prochaine étape : <strong className="text-white">{nextPlan.name}</strong> — {nextPlan.audience.toLocaleLowerCase('fr-FR')}.</p><Link href={nextPlan.id === 'business' ? contactEmailLink('Mon Livret Business') : ROUTES.PRICING} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#e7754d] px-4 py-2.5 text-sm font-semibold text-white">{nextPlan.id === 'business' ? 'Parler de Business' : 'Voir Pro'}<ArrowRight size={16} /></Link></div>}
       </section>
 
       <section aria-label="Parcours des formules">
@@ -116,7 +118,7 @@ export default function SubscriptionPage() {
               : item.id === 'free'
                 ? { label: 'Continuer gratuitement', href: propertyCount ? ROUTES.OWNER_PROPERTIES : ROUTES.OWNER_PROPERTY_NEW }
                 : item.id === 'business'
-                  ? { label: 'Parler à un expert', href: 'mailto:contact@monlivret.eu?subject=Mon%20Livret%20Business' }
+                  ? { label: 'Parler à un expert', href: contactEmailLink('Mon Livret Business') }
                   : { label: 'Choisir Pro', href: ROUTES.PRICING };
 
             return (
