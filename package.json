@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "security:check": "node scripts/check-secrets.mjs",
     "security:history": "node scripts/check-secrets.mjs --history",
-    "check": "npm run security:check && npm run lint && npm run typecheck && npm run test:emails",
+    "check": "npm run security:check && npm run test:security && npm run lint && npm run typecheck && npm run test:emails",
+    "test:security": "node --test tests/security-check.test.mjs",
     "setup:hooks": "git config core.hooksPath .githooks",
     "test:emails": "node --conditions=react-server --import tsx --test tests/account-emails.test.ts",
     "preview:emails": "node --import tsx scripts/preview-emails.ts"
