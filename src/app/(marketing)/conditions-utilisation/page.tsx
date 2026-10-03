@@ -1,3 +1,4 @@
+import { CONTACT_EMAIL } from '@/config/contact';
 import { pageMetadata } from '@/lib/seo';
 
 export const metadata = pageMetadata('/conditions-utilisation');
@@ -119,7 +120,7 @@ export default function TermsPage() {
               Pour toute question relative à ces conditions d'utilisation, contactez-nous :
             </p>
             <p className="text-muted-foreground">
-              Email : contact@monlivret.eu
+              Email : {CONTACT_EMAIL}
             </p>
           </section>
         </div>

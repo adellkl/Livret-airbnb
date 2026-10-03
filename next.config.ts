@@ -33,7 +33,7 @@ const nextConfig: NextConfig = {
           { key: 'Content-Security-Policy', value: "object-src 'none'; base-uri 'self'; frame-ancestors 'self'" },
         ],
       },
-      ...['/guide/:path*', '/proprietaire/:path*', '/admin/:path*', '/connexion', '/inscription', '/mot-de-passe-oublie', '/reinitialiser-mot-de-passe', '/api/:path*'].map((source) => ({
+      ...['/guide/:path*', '/proprietaire/:path*', '/admin/:path*', '/connexion', '/inscription', '/confirmer-adresse', '/mot-de-passe-oublie', '/reinitialiser-mot-de-passe', '/api/:path*'].map((source) => ({
         source,
         headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive, nosnippet, noimageindex' }],
       })),

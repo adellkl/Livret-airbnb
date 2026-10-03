@@ -16,6 +16,7 @@ import { firebaseAuth, firebaseAuthReady } from '@/lib/firebase/client';
 import { createOwnerProfile } from '@/lib/firebase/profile';
 import { firestore } from '@/lib/firebase/client';
 import { ROUTES } from '@/config/routes';
+import { sendWelcomeEmail } from '@/lib/firebase/account-emails';
 
 type GoogleSignInButtonProps = {
   className: string;
@@ -88,6 +89,8 @@ export default function GoogleSignInButton({ className, onError }: GoogleSignInB
         activityType: '',
       }));
       role = 'owner';
+      // La navigation interne laisse l'envoi se poursuivre sans retarder la connexion.
+      void sendWelcomeEmail(credential.user).catch(() => undefined);
     }
 
     router.replace(role === 'admin' ? ROUTES.ADMIN_DASHBOARD : ROUTES.OWNER_DASHBOARD);

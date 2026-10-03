@@ -1,3 +1,4 @@
+import { CONTACT_EMAIL } from '@/config/contact';
 import { pageMetadata } from '@/lib/seo';
 
 export const metadata = pageMetadata('/mentions-legales');
@@ -21,7 +22,7 @@ export default function LegalPage() {
               TVA : Franchise en base de TVA — pas de numéro de TVA communiqué
             </p>
             <p className="text-muted-foreground">
-              Email : contact@monlivret.eu
+              Email : {CONTACT_EMAIL}
             </p>
           </section>
 
@@ -72,7 +73,7 @@ export default function LegalPage() {
           <section>
             <h2 className="text-2xl font-semibold text-foreground mb-4">Contact</h2>
             <p className="text-muted-foreground">
-              Pour toute question relative aux mentions légales de ce site, vous pouvez nous contacter par email à l'adresse : contact@monlivret.eu
+              Pour toute question relative aux mentions légales de ce site, vous pouvez nous contacter par email à l'adresse : {CONTACT_EMAIL}
             </p>
           </section>
         </div>

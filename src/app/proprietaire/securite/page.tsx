@@ -2,14 +2,16 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { EmailAuthProvider, onAuthStateChanged, reauthenticateWithCredential, sendPasswordResetEmail, updatePassword } from 'firebase/auth';
+import { EmailAuthProvider, onAuthStateChanged, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { ArrowLeft, CheckCircle2, KeyRound, Mail, ShieldCheck } from 'lucide-react';
 import OwnerPageShell from '@/components/owner/OwnerPageShell';
+import EmailVerificationNotice from '@/components/auth/EmailVerificationNotice';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ROUTES } from '@/config/routes';
 import { firebaseAuth } from '@/lib/firebase/client';
+import { sendAccountPasswordReset } from '@/lib/firebase/account-emails';
 
 export default function SecurityPage() {
   const [email, setEmail] = useState('');
@@ -64,7 +66,7 @@ export default function SecurityPage() {
     setError('');
     setSendingLink(true);
     try {
-      await sendPasswordResetEmail(firebaseAuth, email, { url: `${window.location.origin}${ROUTES.RESET_PASSWORD}` });
+      await sendAccountPasswordReset(email);
       setMessage(`Un lien de réinitialisation a été envoyé à ${email}.`);
     } catch {
       setError('Impossible d’envoyer le lien sécurisé. Réessayez dans un instant.');
@@ -75,6 +77,7 @@ export default function SecurityPage() {
 
   return (
     <OwnerPageShell title="Sécurité du compte" subtitle="Gardez l’accès à votre espace propriétaire sous votre contrôle.">
+      <EmailVerificationNotice />
       <Link href={ROUTES.OWNER_SETTINGS} className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-[#67716c] transition hover:text-[#1f2925]"><ArrowLeft size={16} />Retour aux réglages</Link>
       <section className="max-w-2xl rounded-[2rem] border border-[#e4ddd6] bg-white p-6 shadow-[0_16px_38px_rgba(31,41,37,.05)] sm:p-8">
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f6e5db] text-[#d85b24]"><KeyRound size={22} /></span>

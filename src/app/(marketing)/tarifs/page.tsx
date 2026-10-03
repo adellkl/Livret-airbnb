@@ -1,5 +1,7 @@
 'use client';
 
+import { CONTACT_EMAIL, contactEmailLink } from '@/config/contact';
+
 import { useState } from 'react';
 import Link from 'next/link';
 import {
@@ -143,7 +145,7 @@ export default function PricingPage() {
         'Onboarding et support dédiés',
       ],
       ctaText: 'Parler à un expert',
-      ctaHref: 'mailto:contact@monlivret.eu',
+      ctaHref: contactEmailLink(),
       icon: Building2,
     },
   ];
@@ -401,10 +403,10 @@ export default function PricingPage() {
             <p className="mt-5 text-sm leading-6 text-[#69716d]">
               Une question plus spécifique ? Écrivez-nous à{' '}
               <a
-                href="mailto:contact@monlivret.eu"
+                href={contactEmailLink()}
                 className="font-bold text-[#d96c4a]"
               >
-                contact@monlivret.eu
+                {CONTACT_EMAIL}
               </a>
               .
             </p>

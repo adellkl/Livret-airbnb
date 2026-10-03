@@ -8,6 +8,7 @@ import OwnerSidebar from '@/components/layout/OwnerSidebar';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import MobileNavigation from '@/components/layout/MobileNavigation';
 import StatCard from '@/components/dashboard/StatCard';
+import EmailVerificationNotice from '@/components/auth/EmailVerificationNotice';
 import { ROUTES } from '@/config/routes';
 import { firebaseAuth, firestore } from '@/lib/firebase/client';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
@@ -199,6 +200,7 @@ export default function OwnerDashboard() {
         />
 
         <main className="mx-auto max-w-[1440px] overflow-x-hidden px-4 py-5 pb-24 sm:px-8 sm:py-8">
+          <EmailVerificationNotice />
           <section className="relative mb-6 overflow-hidden rounded-[2rem] bg-[#17232c] px-6 py-7 text-white shadow-[0_22px_56px_rgba(23,35,44,.17)] sm:px-8 sm:py-9">
             <div className="absolute -right-16 -top-24 h-72 w-72 rounded-full bg-[#e7754d]/25 blur-3xl" />
             <div className="absolute bottom-0 right-1/3 h-32 w-32 rounded-full bg-[#8eb8aa]/20 blur-2xl" />

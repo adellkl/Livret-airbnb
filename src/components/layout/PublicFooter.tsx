@@ -1,3 +1,4 @@
+import { CONTACT_EMAIL, contactEmailLink } from '@/config/contact';
 import Link from 'next/link';
 import { ROUTES } from '@/config/routes';
 import BrandMark from '@/components/layout/BrandMark';
@@ -51,8 +52,8 @@ export default function PublicFooter() {
                 Le guide digital imaginé en France pour les hôtes qui aiment recevoir avec attention.
               </p>
               <div className="mt-8 flex items-center gap-3">
-                <a href="mailto:contact@monlivret.eu" className="text-sm text-white/50 underline decoration-white/15 underline-offset-4 transition hover:text-white">
-                  contact@monlivret.eu
+                <a href={contactEmailLink()} className="text-sm text-white/50 underline decoration-white/15 underline-offset-4 transition hover:text-white">
+                  {CONTACT_EMAIL}
                 </a>
               </div>
             </div>

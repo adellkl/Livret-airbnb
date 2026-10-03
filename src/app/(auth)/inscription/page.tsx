@@ -2,7 +2,6 @@
 
 import { type FormEvent, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, Shield } from 'lucide-react';
 import { ROUTES } from '@/config/routes';
 import AuthShell from '@/components/auth/AuthShell';
@@ -16,6 +15,8 @@ import { createUserWithEmailAndPassword, deleteUser, updateProfile } from 'fireb
 import { firebaseAuth, firebaseAuthReady } from '@/lib/firebase/client';
 import { createOwnerProfile } from '@/lib/firebase/profile';
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton';
+import EmailVerificationNotice from '@/components/auth/EmailVerificationNotice';
+import { sendRegistrationConfirmation } from '@/lib/firebase/account-emails';
 
 const inputClass = 'auth-field h-12 rounded-xl border-[#1f2925]/10 bg-[#faf8f4] px-3.5 text-sm text-[#1f2925] shadow-none placeholder:text-[#9aa09c] focus-visible:border-[#d96c4a]/60 focus-visible:bg-white focus-visible:ring-[#d96c4a]/12';
 const labelClass = 'text-[10px] font-bold uppercase tracking-[0.08em] text-[#4e5953] sm:text-[11px]';
@@ -31,7 +32,7 @@ type Details = {
 };
 
 export default function RegisterPage() {
-  const router = useRouter();
+  const [confirmationStatus, setConfirmationStatus] = useState<'sent' | 'failed' | null>(null);
   const [accountType, setAccountType] = useState<'owner' | 'admin'>('owner');
   const [step, setStep] = useState<1 | 2>(1);
   const [showPassword, setShowPassword] = useState(false);
@@ -94,8 +95,13 @@ export default function RegisterPage() {
         await deleteUser(credential.user);
         throw new Error('profile-creation-failed');
       }
-      router.replace(ROUTES.OWNER_DASHBOARD);
-      router.refresh();
+      // Un échec de livraison ne doit jamais annuler un compte déjà créé.
+      try {
+        await sendRegistrationConfirmation(credential.user);
+        setConfirmationStatus('sent');
+      } catch {
+        setConfirmationStatus('failed');
+      }
     } catch (registrationError) {
       const code = registrationError instanceof Error ? registrationError.message : '';
       setError(code.includes('email-already-in-use')
@@ -105,6 +111,21 @@ export default function RegisterPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (confirmationStatus) {
+    return (
+      <AuthShell mode="register">
+        <AuthCard>
+          <h1 className="mb-3 text-2xl font-semibold text-[#1f2925]">Votre compte est créé</h1>
+          <p className="mb-6 text-sm text-muted-foreground">Bienvenue sur Mon Livret. Vous pouvez dès maintenant préparer votre premier livret.</p>
+          <EmailVerificationNotice initialStatus={confirmationStatus} />
+          <Link href={ROUTES.OWNER_DASHBOARD} className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#1f2925] text-sm font-semibold text-white">
+            Accéder à mon espace <ArrowRight size={16} />
+          </Link>
+        </AuthCard>
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell mode="register">
